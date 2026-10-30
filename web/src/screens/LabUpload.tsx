@@ -52,12 +52,12 @@ export function LabUpload() {
         {!manual ? (
           <>
             <div className="mt-4 text-center">
-              <h2 className="font-display text-[22px] font-bold">Фото анализа</h2>
+              <h2 className="text-[22px] font-bold">Фото анализа</h2>
               <p className="mt-1 text-[14px] text-muted">Сфотографируй или загрузи бланк из галереи</p>
             </div>
             <button
               onClick={() => fileRef.current?.click()}
-              className="mt-5 flex h-64 w-full flex-col items-center justify-center rounded-card border-2 border-dashed border-rose/40 bg-brand-soft/60 transition active:scale-[0.99]"
+              className="mt-5 flex h-64 w-full flex-col items-center justify-center rounded-card border-2 border-dashed border-accent/40 bg-brand-soft/60 transition active:scale-[0.99]"
             >
               <span className="grid size-16 place-items-center rounded-2xl bg-brand text-white shadow-btn">
                 <Camera size={28} />
@@ -89,7 +89,7 @@ export function LabUpload() {
             )}
 
             <label className="mt-5 block text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">Дата сдачи</label>
-            <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} className="mt-2 h-12 w-full rounded-2xl border border-line bg-white px-4 outline-none focus:ring-2 focus:ring-rose/40" />
+            <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} className="mt-2 h-12 w-full rounded-2xl border border-line bg-white px-4 outline-none focus:ring-2 focus:ring-accent/40" />
 
             <div className="mt-5 text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">Показатели</div>
             <div className="mt-2 space-y-2.5">
@@ -122,7 +122,7 @@ export function LabUpload() {
               ))}
             </div>
             {rows.length < LABS.length && (
-              <button onClick={() => setRows((rs) => [...rs, newRow()])} className="mt-3 flex items-center gap-1.5 px-1 text-[14px] font-semibold text-rose">
+              <button onClick={() => setRows((rs) => [...rs, newRow()])} className="mt-3 flex items-center gap-1.5 px-1 text-[14px] font-semibold text-accent">
                 <Plus size={16} /> Добавить показатель
               </button>
             )}

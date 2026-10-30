@@ -82,6 +82,7 @@ export function initTelegram() {
 
 export const haptic = {
   tap: () => inTelegram && tg?.HapticFeedback.impactOccurred('light'),
+  poke: () => inTelegram && tg?.HapticFeedback.impactOccurred('medium'),
   select: () => inTelegram && tg?.HapticFeedback.selectionChanged(),
   success: () => inTelegram && tg?.HapticFeedback.notificationOccurred('success'),
   warn: () => inTelegram && tg?.HapticFeedback.notificationOccurred('warning'),

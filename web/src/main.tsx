@@ -16,6 +16,9 @@ import { Recommendations } from './screens/Recommendations'
 import { Profile } from './screens/Profile'
 import { Notifications } from './screens/Notifications'
 import { History } from './screens/History'
+import { YuviGuide } from './screens/YuviGuide'
+import { Mood } from './screens/Mood'
+import { BodyCode } from './screens/BodyCode'
 
 initTelegram()
 
@@ -43,6 +46,9 @@ const routes: RouteObject[] = [
       { path: '/profile', element: <Profile /> },
       { path: '/notifications', element: <Notifications /> },
       { path: '/history', element: <History /> },
+      { path: '/yuvi', element: <YuviGuide /> },
+      { path: '/mood', element: <Mood /> },
+      { path: '/code', element: <BodyCode /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

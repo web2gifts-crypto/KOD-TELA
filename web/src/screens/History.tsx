@@ -34,7 +34,7 @@ export function History() {
               {expanded && (
                 <div className="mt-3 space-y-2 border-t border-line pt-3 text-[13px]">
                   {c.messages.map((m) => (
-                    <p key={m.id} className={m.role === 'user' ? 'text-right text-rose' : 'text-ink/80'}>
+                    <p key={m.id} className={m.role === 'user' ? 'text-right text-accent' : 'text-ink/80'}>
                       {m.verdict ? `${m.verdict.title}. ${m.verdict.plan.join('; ')}` : m.text}
                     </p>
                   ))}

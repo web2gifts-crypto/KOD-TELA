@@ -62,7 +62,7 @@ export function Recommendations() {
                   }}
                   className="self-start p-1"
                 >
-                  <Heart size={20} className={fav ? 'fill-rose text-rose' : 'text-muted/60'} />
+                  <Heart size={20} className={fav ? 'fill-accent text-accent' : 'text-muted/60'} />
                 </button>
               </Card>
             )

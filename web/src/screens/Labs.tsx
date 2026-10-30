@@ -18,7 +18,7 @@ export function Labs() {
   return (
     <div className="pt-safe px-4">
       <div className="flex h-14 items-center justify-between">
-        <h1 className="font-display text-[22px] font-bold">Анализы</h1>
+        <h1 className="text-[22px] font-bold">Анализы</h1>
         <button aria-label="Добавить анализ" onClick={() => nav('/labs/new')} className="grid size-10 place-items-center rounded-full bg-brand text-white shadow-btn">
           <Plus size={20} />
         </button>
@@ -27,7 +27,7 @@ export function Labs() {
       {labs.length === 0 ? (
         <div className="mt-10 text-center">
           <div className="text-[48px]">🔬</div>
-          <h2 className="mt-3 font-display text-[20px] font-bold">Здесь будут твои анализы</h2>
+          <h2 className="mt-3 text-[20px] font-bold">Здесь будут твои анализы</h2>
           <p className="mx-auto mt-2 max-w-[18rem] text-[14px] text-muted">Загрузи первый — объясню каждый показатель простыми словами и покажу динамику</p>
           <Button className="mt-6" onClick={() => nav('/labs/new')}>
             Загрузить анализ
@@ -63,13 +63,15 @@ export function Labs() {
                   <div className="min-w-0 flex-1">
                     <div className="text-[15px] font-semibold">{formatDay(l.date, true)}</div>
                     <div className="truncate text-[12px] text-muted">{evals.map((e) => e.def.name).join(', ')}</div>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      {evals.map((e) => (
+                        <span key={e.def.code} className="size-2 rounded-full" style={{ background: STATUS_COLOR[e.status] }} />
+                      ))}
+                      <span className={`ml-1 text-[12px] font-semibold ${bad ? 'text-bad' : 'text-ok'}`}>
+                        {bad ? `${bad} ${plural(bad, 'отклонение', 'отклонения', 'отклонений')}` : 'всё в норме'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    {evals.map((e) => (
-                      <span key={e.def.code} className="size-2 rounded-full" style={{ background: STATUS_COLOR[e.status] }} />
-                    ))}
-                  </div>
-                  {bad > 0 && <span className="text-[12px] font-semibold text-bad">{bad} {plural(bad, 'отклонение', 'отклонения', 'отклонений')}</span>}
                   <ChevronRight size={18} className="text-muted" />
                 </Card>
               )
@@ -91,7 +93,7 @@ function Sparkline({ points, min, max }: { points: number[]; min?: number; max?:
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="my-1.5 h-10 w-full" preserveAspectRatio="none">
       {min !== undefined && max !== undefined && <rect x="0" y={y(max)} width={w} height={Math.max(1, y(min) - y(max))} fill="var(--color-ok)" opacity=".1" />}
-      <polyline points={points.map((v, i) => `${x(i)},${y(v)}`).join(' ')} fill="none" stroke="var(--color-rose)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <polyline points={points.map((v, i) => `${x(i)},${y(v)}`).join(' ')} fill="none" stroke="var(--color-accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     </svg>
   )
 }

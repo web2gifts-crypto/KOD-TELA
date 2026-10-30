@@ -6,11 +6,11 @@ import { buildVerdict, emergencyVerdict, isEmergency, QUESTIONS, VERDICT_STYLE, 
 import { PHASES } from '../lib/cycle'
 import { useCycleToday } from '../lib/useCycleToday'
 import { haptic, inTelegram } from '../lib/telegram'
-import { LogoMark } from '../ui/Logo'
+import { Yuvi } from '../ui/Yuvi'
 import { Disclaimer, IconButton } from '../ui/kit'
 
 const STARTERS = ['Болит живот', 'Нерегулярный цикл', 'Усталость', 'Высыпания на коже']
-const GREETING = 'Привет! Я твой AI-помощник. Опиши симптом или загрузи анализ — объясню всё просто 💜'
+const GREETING = 'Привет! Я Юви 💜 Задай мне любой вопрос о своём здоровье или опиши симптом — объясню всё просто.'
 
 type Stage = { kind: 'symptom' } | { kind: 'question'; index: number; symptom: string; answers: Answers } | { kind: 'done' }
 
@@ -93,19 +93,17 @@ export function Chat() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="pt-safe border-b border-line bg-white/85 backdrop-blur-md">
+      <header className="pt-safe glass border-x-0 border-t-0">
         <div className="flex h-16 items-center gap-3 px-4">
           {!inTelegram && (
             <IconButton label="Назад" onClick={() => nav(-1)}>
               <ChevronLeft size={20} />
             </IconButton>
           )}
-          <div className="grid size-10 place-items-center rounded-full bg-brand-soft">
-            <LogoMark size={26} />
-          </div>
+          <Yuvi mood={session.flagged ? 'anxious' : 'great'} size={46} talking={typing} companion={false} />
           <div>
-            <div className="font-display text-[16px] font-bold">AI-ассистент</div>
-            <div className="text-[12px] text-ok">● онлайн</div>
+            <div className="text-[16px] font-bold">Чат с Юви</div>
+            <div className="text-[12px] text-ok">{typing ? 'Юви печатает…' : '● онлайн'}</div>
           </div>
         </div>
       </header>
@@ -115,19 +113,19 @@ export function Chat() {
           <Bubble key={m.id} m={m} onLab={() => nav('/labs/new')} />
         ))}
         {typing && (
-          <div className="flex w-fit gap-1 rounded-3xl rounded-bl-md bg-white px-4 py-3.5 shadow-card">
+          <div className="glass ml-9 flex w-fit gap-1 rounded-3xl rounded-bl-md px-4 py-3.5 shadow-card">
             {[0, 1, 2].map((i) => (
-              <span key={i} className="size-2 rounded-full bg-rose" style={{ animation: `typing 1.2s ${i * 0.15}s infinite` }} />
+              <span key={i} className="size-2 rounded-full bg-accent" style={{ animation: `typing 1.2s ${i * 0.15}s infinite` }} />
             ))}
           </div>
         )}
         <div ref={bottom} />
       </div>
 
-      <div className="pb-safe border-t border-line bg-white/90 backdrop-blur-md">
+      <div className="pb-safe glass border-x-0 border-b-0">
         <div className="flex gap-2 overflow-x-auto px-4 pt-3 [scrollbar-width:none]">
           {quick.map((q) => (
-            <button key={q} disabled={typing} onClick={() => onQuick(q)} className="shrink-0 rounded-full border border-rose/30 bg-white px-3.5 py-2 text-[13px] text-rose transition active:scale-95 disabled:opacity-50">
+            <button key={q} disabled={typing} onClick={() => onQuick(q)} className="shrink-0 rounded-full border border-accent/30 bg-white px-3.5 py-2 text-[13px] text-accent transition active:scale-95 disabled:opacity-50">
               {q}
             </button>
           ))}
@@ -139,14 +137,14 @@ export function Chat() {
             send(input)
           }}
         >
-          <button type="button" aria-label="Загрузить анализ" onClick={() => nav('/labs/new')} className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-soft text-rose">
+          <button type="button" aria-label="Загрузить анализ" onClick={() => nav('/labs/new')} className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-soft text-accent">
             <Camera size={20} />
           </button>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={stage.kind === 'question' ? 'Или ответь своими словами…' : 'Опиши свой симптом…'}
-            className="h-11 min-w-0 flex-1 rounded-full border border-line bg-bg px-4 text-[15px] outline-none focus:ring-2 focus:ring-rose/40"
+            className="h-11 min-w-0 flex-1 rounded-full border border-line bg-bg px-4 text-[15px] outline-none focus:ring-2 focus:ring-accent/40"
           />
           <button type="submit" aria-label="Отправить" disabled={!input.trim() || typing} className="grid size-11 shrink-0 place-items-center rounded-full bg-brand text-white shadow-btn disabled:opacity-40">
             <SendHorizontal size={19} />
@@ -169,12 +167,15 @@ function Bubble({ m, onLab }: { m: ChatMessage; onLab: () => void }) {
     )
   }
   return (
-    <div className="max-w-[88%]">
-      <div className="whitespace-pre-line rounded-3xl rounded-bl-md bg-white px-4 py-3 text-[15px] leading-snug shadow-card">
+    <div className="flex max-w-[92%] items-end gap-1.5">
+      <Yuvi mood={m.verdict?.level === 'emergency' ? 'anxious' : 'great'} size={30} still companion={false} className="mb-5 shrink-0" />
+      <div className="min-w-0">
+      <div className="glass whitespace-pre-line rounded-3xl rounded-bl-md px-4 py-3 text-[15px] leading-snug shadow-card">
         {m.text}
         {m.verdict && <VerdictCard v={m.verdict} onLab={onLab} />}
       </div>
       <div className="mt-1 text-[11px] text-muted">{time}</div>
+      </div>
     </div>
   )
 }
@@ -192,13 +193,13 @@ function VerdictCard({ v, onLab }: { v: Verdict; onLab: () => void }) {
       <ol className="mt-1.5 space-y-1.5">
         {v.plan.map((p, i) => (
           <li key={i} className="flex gap-2 text-[14px]">
-            <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[11px] font-bold text-rose">{i + 1}</span>
+            <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[11px] font-bold text-accent">{i + 1}</span>
             {p}
           </li>
         ))}
       </ol>
       {/анализ|сдай/i.test(v.plan.join(' ')) && v.level !== 'emergency' && (
-        <button onClick={onLab} className="mt-3 text-[13px] font-semibold text-rose">
+        <button onClick={onLab} className="mt-3 text-[13px] font-semibold text-accent">
           Загрузить анализ →
         </button>
       )}

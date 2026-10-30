@@ -3,6 +3,7 @@ import { useApp } from '../store/app'
 import { evaluate, STATUS_COLOR, type LabEval } from '../lib/labs'
 import { formatDay, plural } from '../lib/date'
 import { Button, Card, Disclaimer, PageHeader } from '../ui/kit'
+import { Yuvi, YUVI_MOODS, type YuviMood } from '../ui/Yuvi'
 
 export function LabResult() {
   const { id } = useParams()
@@ -21,13 +22,27 @@ export function LabResult() {
       <PageHeader title="Результаты анализа" />
       <div className="px-4 pb-6">
         <p className="mb-3 px-1 text-[13px] text-muted">Сдан {formatDay(rec.date, true)}</p>
-        {attention > 0 ? (
-          <div className="rounded-2xl border border-bad/25 bg-[#fdeeee] px-4 py-3 text-[14px] font-medium text-bad">
-            🔴 {attention} {plural(attention, 'показатель требует', 'показателя требуют', 'показателей требуют')} внимания
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-ok/25 bg-[#e8f6ef] px-4 py-3 text-[14px] font-medium text-ok">✅ Все показатели в норме</div>
-        )}
+        {(() => {
+          const bad = evals.some((e) => e.status === 'bad')
+          const mood: YuviMood = bad ? 'anxious' : attention ? 'neutral' : 'great'
+          const title = bad ? 'Есть отклонения' : attention ? 'Почти в норме' : 'Хорошо'
+          return (
+            <div className="glass flex items-center gap-2 overflow-hidden rounded-card p-4 shadow-card" style={{ background: `linear-gradient(120deg, white 30%, ${YUVI_MOODS[mood].c[1]}aa)` }}>
+              <div className="flex-1">
+                <div className="text-[14px] font-semibold text-muted">Общее состояние</div>
+                <div className="mt-1 text-[24px] font-bold" style={{ color: YUVI_MOODS[mood].text }}>
+                  {title}
+                </div>
+                <div className="mt-1 text-[13px] text-ink/70">
+                  {attention
+                    ? `${attention} ${plural(attention, 'показатель требует', 'показателя требуют', 'показателей требуют')} внимания`
+                    : 'Все показатели в норме'}
+                </div>
+              </div>
+              <Yuvi mood={mood} size={104} />
+            </div>
+          )
+        })()}
 
         <div className="mt-4 space-y-3">
           {evals
@@ -64,7 +79,7 @@ function LabCard({ e, prev }: { e: LabEval; prev?: number }) {
           </div>
         </div>
         <div className="text-right">
-          <span className="font-display text-[26px] font-bold" style={{ color }}>
+          <span className="text-[26px] font-bold" style={{ color }}>
             {e.value}
           </span>{' '}
           <span className="text-[12px] text-muted">{e.def.unit}</span>
