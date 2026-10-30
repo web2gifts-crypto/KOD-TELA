@@ -24,6 +24,9 @@ interface TgWebApp {
   setBackgroundColor(color: string): void
   setBottomBarColor?(color: string): void
   disableVerticalSwipes?(): void
+  /** Bot API 8.0: полноэкранный режим */
+  isFullscreen?: boolean
+  requestFullscreen?(): void
   openLink(url: string): void
   BackButton: { show(): void; hide(): void; onClick(cb: () => void): void; offClick(cb: () => void): void }
   HapticFeedback: {
@@ -70,7 +73,12 @@ export function initTelegram() {
   if (!inTelegram || !tg) return
   tg.ready()
   tg.expand()
-  const bg = '#FBF6FB'
+  // Через кнопку меню Mini App открывается не во весь экран (в отличие от «Открыть приложение»,
+  // где fullscreen включён в BotFather) — просим полноэкранный режим сами. Только на телефонах:
+  // в десктопном Telegram это развернуло бы всё окно.
+  const mobile = ['ios', 'android', 'android_x'].includes(tg.platform)
+  if (mobile && tg.isVersionAtLeast('8.0') && !tg.isFullscreen) tg.requestFullscreen?.()
+  const bg = '#F4F3FF'
   tg.setHeaderColor(bg)
   tg.setBackgroundColor(bg)
   tg.setBottomBarColor?.(bg)
@@ -78,6 +86,7 @@ export function initTelegram() {
   applySafeArea()
   tg.onEvent('safeAreaChanged', applySafeArea)
   tg.onEvent('contentSafeAreaChanged', applySafeArea)
+  tg.onEvent('fullscreenChanged', applySafeArea)
 }
 
 export const haptic = {
