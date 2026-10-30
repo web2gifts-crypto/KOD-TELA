@@ -1,0 +1,129 @@
+@import '@fontsource/comfortaa/cyrillic-500.css';
+@import '@fontsource/comfortaa/cyrillic-700.css';
+@import '@fontsource/comfortaa/latin-700.css';
+@import '@fontsource/montserrat/cyrillic-400.css';
+@import '@fontsource/montserrat/cyrillic-500.css';
+@import '@fontsource/montserrat/cyrillic-600.css';
+@import '@fontsource/montserrat/cyrillic-700.css';
+@import '@fontsource/montserrat/latin-400.css';
+@import '@fontsource/montserrat/latin-600.css';
+@import 'tailwindcss';
+
+/* Фирменные цвета — из логобука «Код Тела» */
+@theme {
+  --font-display: 'Comfortaa', ui-rounded, system-ui, sans-serif;
+  --font-sans: 'Montserrat', system-ui, -apple-system, sans-serif;
+
+  --color-bg: #fbf6fb;
+  --color-surface: #ffffff;
+  --color-ink: #2b2233;
+  --color-muted: #8c7f99;
+  --color-line: #f0e6f3;
+
+  --color-rose: #e185c4;
+  --color-rose-soft: #fcb3ef;
+  --color-sky: #95beff;
+  --color-peach: #ffe9c1;
+  --color-lilac: #b9a6f0;
+
+  --color-ph-menstrual: #f5b3e3;
+  --color-ph-follicular: #ffe2b2;
+  --color-ph-ovulation: #d585c6;
+  --color-ph-luteal: #c7d8ff;
+
+  --color-ok: #3fa97c;
+  --color-warn: #e1a73a;
+  --color-bad: #e2685a;
+
+  --radius-card: 1.5rem;
+  --shadow-card: 0 6px 24px -8px rgb(160 110 170 / 0.22);
+  --shadow-btn: 0 10px 24px -10px rgb(200 120 190 / 0.6);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  button {
+    cursor: pointer;
+  }
+  input,
+  textarea,
+  button,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@utility bg-brand {
+  background-image: linear-gradient(100deg, #d98bc9 0%, #c39ce0 50%, #9dbaf7 100%);
+}
+@utility bg-brand-soft {
+  background-image: linear-gradient(100deg, #f7e1f2 0%, #e6e4fb 100%);
+}
+@utility text-brand {
+  background-image: linear-gradient(100deg, #d27cbf, #8eaef5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+@utility pt-safe {
+  padding-top: max(env(safe-area-inset-top), var(--tg-content-top, 0px));
+}
+@utility pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), var(--tg-content-bottom, 0px));
+}
+
+/* мягкие «облака» фона, как в прототипе */
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(40rem 26rem at 110% -10%, #e9e3ff 0%, transparent 60%),
+    radial-gradient(30rem 22rem at -20% 30%, #fde4f4 0%, transparent 60%),
+    radial-gradient(28rem 20rem at 100% 100%, #fff1dc 0%, transparent 60%),
+    var(--color-bg);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.anim-rise {
+  animation: rise 0.35s ease-out both;
+}
+@keyframes typing {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-rise {
+    animation: none;
+  }
+}
