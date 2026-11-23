@@ -62,6 +62,7 @@ MENU = [
     ("start", "Открыть приложение"),
     ("reminders", "Напоминания"),
     ("mute", "Выключить все напоминания"),
+    ("partner", "Доступ для партнёра"),
     ("help", "Помощь"),
     ("privacy", "Мои данные и конфиденциальность"),
 ]
@@ -168,3 +169,18 @@ async def privacy(ctx: Ctx, arg: str) -> None:
         "Скачать их или удалить можно в приложении: Профиль → «Мои данные».",
         reply_markup=ctx.app_button("Мои данные", "/data"),
     )
+
+
+UPDATES = ["message", "callback_query", "pre_checkout_query"]
+
+
+async def setup_bot(bot: Bot, settings: Settings, webhook: bool) -> None:
+    """Меню команд и способ получения апдейтов"""
+    from .client import webhook_secret
+
+    if webhook:
+        await bot.call("setWebhook", url=f"{settings.public_api_url}/bot/webhook", secret_token=webhook_secret(settings.bot_token), allowed_updates=UPDATES)
+    else:
+        await bot.call("deleteWebhook", drop_pending_updates=False)
+    await bot.call("setMyCommands", commands=[{"command": c, "description": d} for c, d in MENU])
+    log.info("bot ready (%s)", "webhook" if webhook else "polling")

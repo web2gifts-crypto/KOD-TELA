@@ -18,7 +18,7 @@ from sqlalchemy import delete, select, update
 from contextlib import asynccontextmanager
 
 from .bot.client import Bot, BotError, webhook_secret
-from .bot.handlers import MENU, handle_update
+from .bot.handlers import handle_update, setup_bot
 from .ai.base import ChatReply, ChatRequest, ProviderUnavailable
 from .ai.providers import get_provider
 from .ai.safety import emergency_reply, is_emergency, violates_policy
@@ -35,18 +35,9 @@ alerts.install("api")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     s = get_settings()
-    if s.bot_webhook and s.bot_token:
+    if s.bot_token and (s.bot_mode == "webhook" or s.bot_webhook):
         try:
-            bot = get_bot()
-            await bot.call(
-                "setWebhook",
-                url=f"{s.public_api_url}/bot/webhook",
-                secret_token=webhook_secret(s.bot_token),
-                allowed_updates=["message", "callback_query", "pre_checkout_query"],
-                drop_pending_updates=False,
-            )
-            await bot.call("setMyCommands", commands=[{"command": c, "description": d} for c, d in MENU])
-            log.info("bot webhook set")
+            await setup_bot(get_bot(), s, webhook=True)
         except BotError as e:
             log.warning("bot setup failed: %s", e)
     yield

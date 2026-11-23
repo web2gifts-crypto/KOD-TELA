@@ -11,8 +11,9 @@ from pathlib import Path
 
 from sqlalchemy import delete, select, update
 
-from . import alerts, reminders
-from .bot.client import Bot
+from . import alerts, billing, partner, reminders  # noqa: F401 — регистрируют команды бота
+from .bot.client import Bot, BotError
+from .bot.handlers import UPDATES, handle_update, setup_bot
 from .config import get_settings
 from .db import Consent, Entry, PartnerGrant, ReminderJob, User, engine, get_db
 from .security import Cipher
@@ -70,12 +71,43 @@ def purge_inactive(now_utc: datetime) -> int:
         db.close()
 
 
+async def poll_updates(bot: Bot) -> None:
+    """Long polling: сами забираем апдейты у Telegram (исходящие соединения с сервера работают)"""
+    s = get_settings()
+    while True:
+        try:
+            await setup_bot(bot, s, webhook=False)
+            break
+        except BotError as e:
+            log.warning("bot setup failed, retry: %s", e)
+            await asyncio.sleep(10)
+    offset = None
+    while True:
+        try:
+            updates = await bot.call("getUpdates", offset=offset, timeout=25, allowed_updates=UPDATES)
+        except BotError as e:
+            log.warning("getUpdates failed: %s", e)
+            await asyncio.sleep(5)
+            continue
+        for u in updates:
+            offset = u["update_id"] + 1
+            db = next(get_db())
+            try:
+                await handle_update(bot, db, s, u)
+            except Exception:
+                log.exception("update handling failed")
+            finally:
+                db.close()
+
+
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     alerts.install("worker")
     s = get_settings()
     bot = Bot(s.bot_token)
     engine()
+    if s.bot_mode == "polling" and s.bot_token:
+        asyncio.create_task(poll_updates(bot))
     last_purge = None
     log.info("worker started")
     while True:

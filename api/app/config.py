@@ -30,8 +30,10 @@ class Settings(BaseSettings):
     webapp_url: str = "https://app.kodtela.tech/"
     public_api_url: str = "https://api.kodtela.tech"
     bot_username: str = "kodtela_app"
-    # ставить вебхук бота и меню команд при старте (только на проде)
-    bot_webhook: bool = False
+    # как бот получает сообщения: polling — воркер сам забирает их (getUpdates); webhook — Telegram стучится к нам.
+    # С российского сервера входящие соединения от Telegram режутся, поэтому на проде — polling.
+    bot_mode: str = "off"  # off | polling | webhook
+    bot_webhook: bool = False  # устарело: то же, что bot_mode=webhook
     # чат, куда бот шлёт технические алерты (ошибки API, сбои воркера); пусто — никуда
     admin_chat_id: int | None = None
     # текущая версия согласия на обработку данных; при смене — спросим заново

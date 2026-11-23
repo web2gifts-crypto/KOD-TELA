@@ -46,3 +46,32 @@ def test_pin_reset_notifies_owner(client):
     assert client.post("/v1/security/pin-reset", headers=auth()).json() == {"ok": True}
     m = client.bot.sent()[-1]
     assert m["chat_id"] == 42 and "сбросили код" in m["text"]
+
+
+def test_worker_polls_and_handles_updates(client, monkeypatch):
+    """Long polling: воркер забирает апдейты сам и отвечает на /start"""
+    import asyncio
+
+    from app import worker
+
+    calls = {"n": 0}
+
+    class PollBot(type(client.bot)):
+        async def call(self, method, **params):
+            if method == "getUpdates":
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    return [{"update_id": 5, "message": {"message_id": 1, "from": {"id": 42}, "chat": {"id": 42, "type": "private"}, "text": "/start"}}]
+                assert params["offset"] == 6
+                raise asyncio.CancelledError
+            return await super().call(method, **params)
+
+    bot = PollBot()
+    try:
+        asyncio.run(worker.poll_updates(bot))
+    except asyncio.CancelledError:
+        pass
+    methods = [m for m, _ in bot.calls]
+    assert methods[:2] == ["deleteWebhook", "setMyCommands"]
+    assert "partner" in [c["command"] for c in bot.calls[1][1]["commands"]]
+    assert "Юви" in bot.sent()[-1]["text"]

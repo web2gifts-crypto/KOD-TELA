@@ -21,7 +21,8 @@ class Bot:
     async def call(self, method: str, **params: Any) -> Any:
         params = {k: v for k, v in params.items() if v is not None}
         try:
-            async with httpx.AsyncClient(timeout=15) as c:
+            # long polling держит запрос до 25 с
+            async with httpx.AsyncClient(timeout=40) as c:
                 r = await c.post(self._base + method, json=params)
             data = r.json()
         except (httpx.HTTPError, ValueError) as e:
