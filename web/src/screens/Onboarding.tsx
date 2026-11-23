@@ -7,6 +7,7 @@ import { Yuvi, type YuviMood } from '../ui/Yuvi'
 import { useApp, type Goal } from '../store/app'
 import { getUser, haptic } from '../lib/telegram'
 import { today } from '../lib/date'
+import { CONSENT_VERSION } from '../lib/legal'
 
 const GOALS: { id: Goal; label: string }[] = [
   { id: 'cycle', label: 'Цикл' },
@@ -17,11 +18,25 @@ const GOALS: { id: Goal; label: string }[] = [
 
 export function Onboarding() {
   const profile = useApp((s) => s.profile)
-  const [step, setStep] = useState(0)
-  const [consent, setConsent] = useState(false)
+  // шаг помним в сессии: со страницы политики конфиденциальности возвращаемся туда же
+  const [step, setStepRaw] = useState(() => {
+    try {
+      return Number(sessionStorage.getItem('onboarding-step')) || 0
+    } catch {
+      return 0
+    }
+  })
+  const setStep = (n: number) => {
+    setStepRaw(n)
+    try {
+      sessionStorage.setItem('onboarding-step', String(n))
+    } catch {
+      /* приватный режим — не страшно */
+    }
+  }
   if (profile) return <Navigate to="/" replace />
 
-  const next = () => setStep((s) => s + 1)
+  const next = () => setStep(step + 1)
   return (
     <div className="pt-safe pb-safe mx-auto flex min-h-dvh max-w-[480px] flex-col px-6">
       <div className="flex h-14 items-center justify-between">
@@ -38,7 +53,7 @@ export function Onboarding() {
         {step === 0 && <Brand onNext={next} />}
         {step === 1 && <Welcome onNext={next} />}
         {step === 2 && <Skills onNext={next} />}
-        {step === 3 && <Consent checked={consent} onToggle={() => setConsent(!consent)} onNext={next} />}
+        {step === 3 && <ConsentForm onAccept={next} />}
         {step === 4 && <Register />}
       </div>
       <div className="h-4" />
@@ -154,8 +169,18 @@ function Skills({ onNext }: { onNext: () => void }) {
   )
 }
 
-function Consent({ checked, onToggle, onNext }: { checked: boolean; onToggle: () => void; onNext: () => void }) {
-  const points = ['Шифрование при передаче и хранении', 'Серверы в России, по 152-ФЗ', 'Без рекламы и передачи третьим лицам', 'Удали все данные в любой момент']
+/** Согласие: два отдельных пункта — общие данные и данные о здоровье (ст. 9 и 10 152-ФЗ). */
+export function ConsentForm({ onAccept, button = 'Продолжить' }: { onAccept: () => void; button?: string }) {
+  const nav = useNavigate()
+  const acceptConsent = useApp((s) => s.acceptConsent)
+  const [pd, setPd] = useState(false)
+  const [health, setHealth] = useState(false)
+  const points = ['Серверы в России, данные о здоровье зашифрованы', 'Без рекламы и продажи данных', 'Скачай или удали всё в любой момент']
+  const accept = () => {
+    haptic.success()
+    acceptConsent(CONSENT_VERSION)
+    onAccept()
+  }
   return (
     <>
       <div className="flex flex-1 flex-col justify-center">
@@ -175,28 +200,55 @@ function Consent({ checked, onToggle, onNext }: { checked: boolean; onToggle: ()
             </li>
           ))}
         </ul>
-        <button
-          onClick={() => {
-            haptic.select()
-            onToggle()
-          }}
-          className="glass mt-3 flex w-full items-start gap-3 rounded-card p-4 text-left shadow-card"
-          role="checkbox"
-          aria-checked={checked}
-        >
-          <span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border-2 transition ${checked ? 'border-accent bg-accent text-white' : 'border-muted/50'}`}>
-            {checked && <Check size={14} strokeWidth={3} />}
-          </span>
-          <span className="text-[13px] leading-snug text-ink/85">
-            Я согласна на обработку персональных данных, включая данные о здоровье, в соответствии с{' '}
-            <span className="text-accent underline decoration-accent/40">152-ФЗ «О персональных данных»</span>
-          </span>
-        </button>
+        <CheckRow checked={pd} onToggle={() => setPd(!pd)}>
+          Принимаю{' '}
+          <Link onClick={() => nav('/privacy')}>политику конфиденциальности</Link> и согласна на обработку моих персональных данных
+        </CheckRow>
+        <CheckRow checked={health} onToggle={() => setHealth(!health)}>
+          Согласна на обработку данных о здоровье (цикл, самочувствие, анализы) —{' '}
+          <Link onClick={() => nav('/consent-text')}>текст согласия</Link>
+        </CheckRow>
       </div>
-      <Button onClick={onNext} disabled={!checked} className="mb-2 mt-6">
-        Продолжить
+      <Button onClick={accept} disabled={!pd || !health} className="mb-2 mt-6">
+        {button}
       </Button>
     </>
+  )
+}
+
+function CheckRow({ checked, onToggle, children }: { checked: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <div
+      onClick={() => {
+        haptic.select()
+        onToggle()
+      }}
+      className="glass mt-3 flex w-full cursor-pointer items-start gap-3 rounded-card p-4 text-left shadow-card"
+      role="checkbox"
+      aria-checked={checked}
+      tabIndex={0}
+      onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && onToggle()}
+    >
+      <span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border-2 transition ${checked ? 'border-accent bg-accent text-white' : 'border-muted/50'}`}>
+        {checked && <Check size={14} strokeWidth={3} />}
+      </span>
+      <span className="text-[13px] leading-snug text-ink/85">{children}</span>
+    </div>
+  )
+}
+
+function Link({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      className="text-accent underline decoration-accent/40"
+    >
+      {children}
+    </button>
   )
 }
 

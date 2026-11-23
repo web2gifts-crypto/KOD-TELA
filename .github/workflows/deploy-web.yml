@@ -33,6 +33,8 @@ jobs:
         run: npm test --prefix web
 
       - name: Build
+        env:
+          VITE_API_URL: https://api.kodtela.tech
         run: npm run build --prefix web
 
       - name: Upload to server

@@ -16,18 +16,17 @@ export function apiFetch(path: string, init: RequestInit = {}): Promise<Response
 }
 
 /**
- * Отправить файл в чат с ботом. Бэкенд проверяет подпись initData и шлёт документ через Bot API (sendDocument).
- * Без бэкенда (или вне Telegram) — файл скачивается на устройство.
+ * Отправить файл в чат с ботом: бэкенд проверяет подпись initData и шлёт документ через Bot API.
+ * Без бэкенда, вне Telegram или если сервер недоступен — файл скачивается на устройство.
  */
 export async function sendFileToBot(file: { filename: string; content: string; mime: string }): Promise<'bot' | 'download'> {
   if (API_URL && inTelegram) {
-    const res = await fetch(`${API_URL}/export`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `tma ${getInitData()}` },
-      body: JSON.stringify({ filename: file.filename, content: file.content }),
-    })
-    if (!res.ok) throw new Error(`export failed: ${res.status}`)
-    return 'bot'
+    try {
+      const res = await apiFetch('/v1/export', { method: 'POST', body: JSON.stringify({ filename: file.filename, content: file.content }) })
+      if (res.ok) return 'bot'
+    } catch {
+      /* сеть — скачаем */
+    }
   }
   const url = URL.createObjectURL(new Blob([file.content], { type: file.mime }))
   const a = Object.assign(document.createElement('a'), { href: url, download: file.filename })

@@ -1,0 +1,58 @@
+"""Настройки берутся из переменных окружения (файл /srv/kodtela/.env на сервере).
+
+Секреты (BOT_TOKEN, пароль БД, DATA_KEY) никогда не коммитятся в репозиторий.
+"""
+
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # либо целиком DATABASE_URL, либо по частям DB_* (пароль тогда вставляется как есть, без экранирования)
+    database_url: str = ""
+    db_host: str = ""
+    db_port: int = 5432
+    db_name: str = "default_db"
+    db_user: str = "gen_user"
+    db_password: str = ""
+    # токен бота — им проверяется подпись initData и отправляются файлы в чат
+    bot_token: str = ""
+    # 32 байта в base64 — ключ шифрования данных о здоровье (AES-256-GCM)
+    data_key: str = ""
+    # сколько секунд действительна подпись initData
+    init_data_ttl: int = 24 * 3600
+    # откуда разрешены запросы (Mini App)
+    allowed_origins: str = "https://app.kodtela.tech"
+    # текущая версия согласия на обработку данных; при смене — спросим заново
+    consent_version: str = "2026-11-23"
+
+    # --- ИИ (GigaChat). Настраивает отдельный разработчик, см. docs/AI.md ---
+    ai_enabled: bool = False
+    ai_provider: str = "stub"  # stub | gigachat
+    gigachat_auth_key: str = ""  # ключ авторизации из личного кабинета Sber
+    gigachat_scope: str = "GIGACHAT_API_PERS"
+    gigachat_model: str = "GigaChat"
+
+    # лимиты
+    max_entry_bytes: int = 1_000_000
+    chat_per_hour: int = 30
+    export_per_hour: int = 10
+
+
+    @property
+    def db_url(self) -> str:
+        if self.database_url:
+            return self.database_url
+        if self.db_host:
+            from urllib.parse import quote
+
+            return f"postgresql+psycopg://{quote(self.db_user, safe='')}:{quote(self.db_password, safe='')}@{self.db_host}:{self.db_port}/{self.db_name}"
+        return "sqlite:///./dev.db"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

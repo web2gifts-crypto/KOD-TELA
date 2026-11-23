@@ -55,7 +55,7 @@ export interface ChatSession {
   flagged?: boolean
 }
 
-interface AppState {
+export interface AppState {
   profile: Profile | null
   cycle: CycleSettings
   /** отмеченные дни месячных: 0 — интенсивность не указана, 1..4 — мажущие…обильные */
@@ -76,6 +76,8 @@ interface AppState {
   chats: ChatSession[]
   favorites: string[]
   readNotifications: string[]
+  /** согласие на обработку данных: версия текстов и время (152-ФЗ) */
+  consent: { version: string; at: number } | null
   /** какие реплики Юви и когда показывались — чтобы не повторяться */
   talkSeen: Record<string, ISODate>
 
@@ -95,6 +97,9 @@ interface AppState {
   toggleFavorite: (id: string) => void
   markRead: (ids: string[]) => void
   markTalkSeen: (id: string) => void
+  acceptConsent: (version: string) => void
+  /** применить данные с сервера (синхронизация) */
+  applyRemote: (patch: Partial<AppState>) => void
   resetAll: () => void
   /** заменить данные (демо для показа) */
   loadData: (data: Partial<AppData>) => void
@@ -124,6 +129,7 @@ const initial = {
   favorites: [],
   readNotifications: [],
   talkSeen: {},
+  consent: null,
 }
 
 export const useApp = create<AppState>()(
@@ -176,13 +182,16 @@ export const useApp = create<AppState>()(
           favorites: s.favorites.includes(id) ? s.favorites.filter((x) => x !== id) : [...s.favorites, id],
         })),
       markRead: (ids) => set((s) => ({ readNotifications: [...new Set([...s.readNotifications, ...ids])] })),
+      applyRemote: (patch) =>
+        set((s) => (patch.periodDays || patch.cycle ? { ...patch, ...syncPeriods(patch.periodDays ?? s.periodDays, { ...s.cycle, ...patch.cycle }) } : patch)),
+      acceptConsent: (version) => set({ consent: { version, at: Date.now() } }),
       markTalkSeen: (id) => set((s) => ({ talkSeen: { ...s.talkSeen, [id]: today() } })),
       resetAll: () => set(initial),
       loadData: (data) => set({ ...data, introSeen: true }),
     }),
     {
       name: 'kodtela',
-      version: 6,
+      version: 7,
       migrate: migrateState,
     },
   ),
@@ -213,6 +222,8 @@ export function migrateState(old: unknown): AppState {
       return { ...m, verdict: { ...m.verdict, level, title: lv === 'norm' ? 'Вот что можно знать' : m.verdict.title } }
     }),
   }))
+  // v7: согласие хранится отдельно с версией текстов; старое (без версии) — попросим заново
+  if (st.consent === undefined) st.consent = null
   return st
 }
 

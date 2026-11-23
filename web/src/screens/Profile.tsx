@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Bell, CalendarHeart, ChevronRight, CircleHelp, FlaskConical, MessageCircle, ShieldCheck, Smile, Trash2, Wand2 } from 'lucide-react'
+import { Bell, CalendarHeart, ChevronRight, CircleHelp, FlaskConical, MessageCircle, ShieldCheck, Smile, Wand2 } from 'lucide-react'
 import { useApp } from '../store/app'
 import { Yuvi } from '../ui/Yuvi'
 import { GlassIcon, PageHeader, type Tone } from '../ui/kit'
@@ -14,7 +14,7 @@ import { demoData } from '../lib/demo'
 
 export function Profile() {
   const nav = useNavigate()
-  const { profile, labs, chats, resetAll, loadData } = useApp()
+  const { profile, labs, chats, loadData } = useApp()
   const user = getUser()
   const { info } = useCycleToday()
   if (!profile) return null
@@ -27,16 +27,9 @@ export function Profile() {
     { icon: MessageCircle, tone: 'blue', label: 'История диалогов с Юви', badge: chats.length, to: '/history' },
     { icon: Smile, tone: 'mint', label: 'Индикатор настроения Юви', to: '/yuvi' },
     { icon: Bell, tone: 'peach', label: 'Уведомления', to: '/notifications' },
-    { icon: ShieldCheck, tone: 'violet', label: 'Конфиденциальность' },
+    { icon: ShieldCheck, tone: 'violet', label: 'Мои данные и конфиденциальность', to: '/data' },
     { icon: CircleHelp, tone: 'blue', label: 'Помощь' },
   ]
-
-  const wipe = () => {
-    if (!window.confirm('Удалить все твои данные? Это действие нельзя отменить.')) return
-    haptic.warn()
-    resetAll()
-    nav('/welcome', { replace: true })
-  }
 
   // демо-данные для показа (защита ВКР) — только вне Telegram или в режиме разработки
   const showDemo = import.meta.env.DEV || !inTelegram
@@ -106,10 +99,7 @@ export function Profile() {
             <Wand2 size={17} /> Заполнить демо-данными
           </button>
         )}
-        <button onClick={wipe} className="glass mt-3 flex w-full items-center justify-center gap-2 rounded-card py-3.5 text-[14px] font-medium text-bad shadow-card">
-          <Trash2 size={17} /> Удалить мои данные
-        </button>
-        <p className="mt-4 text-center text-[11px] text-muted">Код Тела · MVP 0.1</p>
+        <p className="mt-4 text-center text-[11px] text-muted">Код Тела · 1.0</p>
       </div>
     </div>
   )

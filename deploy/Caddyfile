@@ -24,9 +24,18 @@ kodtela.tech, www.kodtela.tech {
 	redir https://app.kodtela.tech{uri} 302
 }
 
-# API — бэкенд появится позже, пока только проверка доступности
+# API (FastAPI в контейнере api)
 api.kodtela.tech {
-	header -Server
-	respond /health "ok" 200
-	respond "Код Тела API — скоро" 503
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+	request_body {
+		max_size 3MB
+	}
+	reverse_proxy api:8000 {
+		health_uri /health
+	}
 }

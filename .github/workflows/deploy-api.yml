@@ -1,0 +1,48 @@
+# Тесты и выкладка API (api.kodtela.tech) при пуше в main.
+# Ключ DEPLOY_SSH_KEY на сервере может только: залить статику (rrsync) или передать архив api/ в
+# /usr/local/bin/kodtela-deploy → kodtela-api-up (сборка образа, перезапуск, проверка здоровья).
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths: ['api/**', '.github/workflows/deploy-api.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+      - name: Test
+        working-directory: api
+        run: |
+          pip install -r requirements.txt pytest==8.3.4
+          python -m pytest -q
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload and restart
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "45.144.222.226 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKeXBzdXEIfBXJgmed4dIi7ebtGgwuyb06K+TbBujDfZ" > ~/.ssh/known_hosts
+          tar -czf - --exclude=tests --exclude='__pycache__' api | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes deploy@45.144.222.226 deploy-api
+
+      - name: Check
+        run: curl -fsS -w " api.kodtela.tech %{http_code}\n" https://api.kodtela.tech/health
