@@ -1,0 +1,44 @@
+# Сборка Mini App и выкладка на сервер (app.kodtela.tech) при пуше в main.
+# Ключ DEPLOY_SSH_KEY может только заливать файлы в /srv/kodtela/web (rrsync на сервере).
+name: Deploy web
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', '.github/workflows/deploy-web.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build
+        run: |
+          npm ci --prefix web
+          npm run build --prefix web
+
+      - name: Upload to server
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # ключ хоста закреплён — защита от подмены сервера
+          echo "45.144.222.226 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKeXBzdXEIfBXJgmed4dIi7ebtGgwuyb06K+TbBujDfZ" > ~/.ssh/known_hosts
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes" web/dist/ deploy@45.144.222.226:/
+
+      - name: Check
+        run: curl -fsS -o /dev/null -w "app.kodtela.tech %{http_code}\n" https://app.kodtela.tech/
