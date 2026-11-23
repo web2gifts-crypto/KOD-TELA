@@ -11,9 +11,10 @@
 import { useApp, type AppState } from '../store/app'
 import { apiFetch, hasBackend } from './api'
 import { CONSENT_VERSION } from './legal'
+import { deviceTz } from './reminders'
 import { getUser, inTelegram } from './telegram'
 
-export const SYNC_KEYS = ['profile', 'cycle', 'periodDays', 'moods', 'moodNotes', 'symptoms', 'labs', 'chats', 'prefs'] as const
+export const SYNC_KEYS = ['profile', 'cycle', 'periodDays', 'moods', 'moodNotes', 'symptoms', 'labs', 'chats', 'prefs', 'reminders', 'pill', 'pillLog', 'dayLog', 'mode'] as const
 export type SyncKey = (typeof SYNC_KEYS)[number]
 
 const PREFS = ['introSeen', 'predictionSeen', 'favorites', 'readNotifications', 'talkSeen'] as const
@@ -46,6 +47,17 @@ export function merge(k: SyncKey, server: unknown, local: unknown): unknown {
   if (server == null) return local
   if (local == null) return server
   switch (k) {
+    case 'reminders':
+      // бот меняет напоминания с сервера (/mute, кнопки) — его версия свежее
+      return server
+    case 'dayLog': {
+      const s = server as Record<string, Rec>
+      const l = local as Record<string, Rec>
+      const out: Record<string, Rec> = { ...s }
+      for (const [d, v] of Object.entries(l)) out[d] = { ...s[d], ...v }
+      return out
+    }
+    case 'pillLog':
     case 'periodDays':
     case 'moods':
     case 'moodNotes':
@@ -256,8 +268,14 @@ export function startSync(): void {
     if (status === 'waiting-consent' && st.consent?.version === CONSENT_VERSION && prev.consent !== st.consent) void connect()
   })
 
+  let lastPull = Date.now()
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') void flush()
+    // вернулись в приложение — подтянуть правки с других устройств и из бота (не чаще раза в минуту)
+    else if (status === 'ok' && Date.now() - lastPull > 60_000) {
+      lastPull = Date.now()
+      void pull().catch(() => setStatus('offline'))
+    }
   })
 
   void connect()
@@ -271,6 +289,10 @@ async function connect(): Promise<void> {
       return
     }
     await pull()
+    // напоминания — с часовым поясом устройства (по умолчанию «скоро месячные» включено)
+    const st = useApp.getState()
+    if (!st.reminders && st.profile) st.setReminders({})
+    else if (st.reminders && st.reminders.tz !== deviceTz()) st.setReminders({ tz: deviceTz() })
     setStatus('ok')
     await flush()
   } catch {

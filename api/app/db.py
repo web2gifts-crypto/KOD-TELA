@@ -61,6 +61,62 @@ class Consent(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class ReminderJob(Base):
+    """Расписание напоминаний: только кому, когда и какой тип — без содержимого"""
+
+    __tablename__ = "reminder_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    fire_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class PartnerGrant(Base):
+    """Доступ партнёра: открыть ссылку может только этот Telegram-аккаунт.
+    Хранится хеш ссылки (не сама ссылка), имя партнёра — чтобы владелец видел, кому дан доступ."""
+
+    __tablename__ = "partner_grants"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    partner_tg_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    partner_name: Mapped[str] = mapped_column(String(64), default="")
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    # что видит партнёр: {"cycle": true, "fertile": false, "mood": false}
+    scope: Mapped[str] = mapped_column(String(200), default='{"cycle": true, "fertile": false, "mood": false}')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    last_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class Subscription(Base):
+    """Оплата «Код Тела+» звёздами Telegram — одна строка на платёж (продление — новая строка)"""
+
+    __tablename__ = "subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
+    plan: Mapped[str] = mapped_column(String(16))
+    stars: Mapped[int] = mapped_column(Integer)
+    charge_id: Mapped[str] = mapped_column(String(128), unique=True)
+    recurring: Mapped[bool] = mapped_column(default=False)
+    canceled: Mapped[bool] = mapped_column(default=False)
+    refunded: Mapped[bool] = mapped_column(default=False)
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class Usage(Base):
+    """Счётчики лимитов по дням (вопросы ИИ и т.п.)"""
+
+    __tablename__ = "usage"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[str] = mapped_column(String(10), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
 _engine = None
 _Session: sessionmaker[Session] | None = None
 

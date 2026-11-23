@@ -28,6 +28,22 @@ interface TgWebApp {
   isFullscreen?: boolean
   requestFullscreen?(): void
   openLink(url: string): void
+  /** Bot API 7.2: Face ID / Touch ID / отпечаток */
+  BiometricManager?: {
+    isInited: boolean
+    isBiometricAvailable: boolean
+    biometricType: 'finger' | 'face' | 'unknown'
+    isAccessGranted: boolean
+    isAccessRequested: boolean
+    init(cb?: () => void): void
+    requestAccess(params: { reason?: string }, cb?: (granted: boolean) => void): void
+    authenticate(params: { reason?: string }, cb?: (ok: boolean) => void): void
+  }
+  /** Bot API 6.1: открыть счёт (оплата звёздами) */
+  openInvoice?(url: string, cb?: (status: 'paid' | 'cancelled' | 'failed' | 'pending') => void): void
+  /** Bot API 6.9: разрешение боту писать пользователю */
+  requestWriteAccess?(cb?: (allowed: boolean) => void): void
+  openTelegramLink?(url: string): void
   BackButton: { show(): void; hide(): void; onClick(cb: () => void): void; offClick(cb: () => void): void }
   HapticFeedback: {
     impactOccurred(style: HapticStyle): void
@@ -111,4 +127,64 @@ export function bindBackButton(visible: boolean, onBack: () => void): () => void
 
 export function closeApp() {
   if (inTelegram) tg?.close()
+}
+
+/** Разрешить боту писать в чат (нужно для напоминаний). Вне Telegram — true. */
+export function requestWriteAccess(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!inTelegram || !tg?.requestWriteAccess || !tg.isVersionAtLeast('6.9')) return resolve(true)
+    try {
+      tg.requestWriteAccess((ok) => resolve(ok))
+    } catch {
+      resolve(true)
+    }
+  })
+}
+
+/** Открыть ссылку t.me внутри Telegram (чат с ботом и т.п.) */
+export function openTelegramLink(url: string) {
+  if (inTelegram && tg?.openTelegramLink) tg.openTelegramLink(url)
+  else window.open(url, '_blank')
+}
+
+/** Параметр из ссылки t.me/<bot>?startapp=<param> */
+export function getStartParam(): string | null {
+  return (inTelegram && tg?.initDataUnsafe.start_param) || null
+}
+
+/* ---------- биометрия ---------- */
+
+export interface Biometry {
+  available: boolean
+  type: 'finger' | 'face' | 'unknown'
+}
+
+/** Доступна ли биометрия на устройстве (Telegram Bot API 7.2+) */
+export function biometry(): Promise<Biometry> {
+  return new Promise((resolve) => {
+    const bm = inTelegram && tg?.isVersionAtLeast('7.2') ? tg.BiometricManager : undefined
+    if (!bm) return resolve({ available: false, type: 'unknown' })
+    const done = () => resolve({ available: bm.isBiometricAvailable, type: bm.biometricType })
+    if (bm.isInited) done()
+    else bm.init(done)
+  })
+}
+
+/** Подтвердить вход биометрией; при первом использовании Telegram спросит разрешение */
+export function biometricAuth(reason: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const bm = inTelegram ? tg?.BiometricManager : undefined
+    if (!bm?.isBiometricAvailable) return resolve(false)
+    const auth = () => bm.authenticate({ reason }, (ok) => resolve(ok))
+    if (bm.isAccessGranted) auth()
+    else bm.requestAccess({ reason }, (granted) => (granted ? auth() : resolve(false)))
+  })
+}
+
+/** Открыть счёт на оплату звёздами; результат — статус оплаты */
+export function openInvoice(url: string): Promise<'paid' | 'cancelled' | 'failed' | 'pending'> {
+  return new Promise((resolve) => {
+    if (!inTelegram || !tg?.openInvoice) return resolve('failed')
+    tg.openInvoice(url, (st) => resolve(st))
+  })
 }

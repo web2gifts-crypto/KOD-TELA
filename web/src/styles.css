@@ -476,3 +476,12 @@
     animation: none;
   }
 }
+
+/* ошибка ввода кода */
+.anim-shake {
+  animation: shake 0.4s ease;
+}
+@keyframes shake {
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}

@@ -6,33 +6,53 @@
 
 import json
 import logging
-import time
-from datetime import timezone
-from collections import defaultdict, deque
 from typing import Annotated, Any
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
-from sqlalchemy.orm import Session
 
+from contextlib import asynccontextmanager
+
+from .bot.client import Bot, BotError, webhook_secret
+from .bot.handlers import MENU, handle_update
 from .ai.base import ChatReply, ChatRequest, ProviderUnavailable
 from .ai.providers import get_provider
 from .ai.safety import emergency_reply, is_emergency, violates_policy
-from .config import Settings, get_settings
-from .db import Consent, Entry, User, get_db, now
-from .security import Cipher, InitDataError, TgUser, validate_init_data
+from . import alerts, billing, entries, partner, reminders
+from .config import get_settings
+from .db import Consent, Entry, PartnerGrant, Subscription, Usage, User, now
+from .security import Cipher
 
 log = logging.getLogger("kodtela")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+alerts.install("api")
 
-# что клиент может хранить на сервере — фиксированный список, лишнего не принимаем
-DATA_KEYS = {"profile", "cycle", "periodDays", "moods", "moodNotes", "symptoms", "labs", "chats", "prefs"}
 
-app = FastAPI(title="Код Тела API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None)
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    s = get_settings()
+    if s.bot_webhook and s.bot_token:
+        try:
+            bot = get_bot()
+            await bot.call(
+                "setWebhook",
+                url=f"{s.public_api_url}/bot/webhook",
+                secret_token=webhook_secret(s.bot_token),
+                allowed_updates=["message", "callback_query", "pre_checkout_query"],
+                drop_pending_updates=False,
+            )
+            await bot.call("setMyCommands", commands=[{"command": c, "description": d} for c, d in MENU])
+            log.info("bot webhook set")
+        except BotError as e:
+            log.warning("bot setup failed: %s", e)
+    yield
+
+
+app = FastAPI(title="Код Тела API", version="1.0.0", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in get_settings().allowed_origins.split(",") if o.strip()],
@@ -40,60 +60,10 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
     max_age=600,
 )
+app.include_router(partner.router)
+app.include_router(billing.router)
 
-SettingsDep = Annotated[Settings, Depends(get_settings)]
-DbDep = Annotated[Session, Depends(get_db)]
-
-
-# ---------- авторизация ----------
-
-
-def tg_user(settings: SettingsDep, authorization: Annotated[str | None, Header()] = None) -> TgUser:
-    if not authorization or not authorization.startswith("tma "):
-        raise HTTPException(401, "unauthorized")
-    try:
-        return validate_init_data(authorization[4:], settings.bot_token, settings.init_data_ttl)
-    except InitDataError as e:
-        raise HTTPException(401, "unauthorized") from e
-
-
-TgDep = Annotated[TgUser, Depends(tg_user)]
-
-
-def consented_user(tg: TgDep, db: DbDep, settings: SettingsDep) -> User:
-    user = db.scalar(select(User).where(User.tg_id == tg.id))
-    if user is None or user.consent_version is None:
-        raise HTTPException(403, "consent required")
-    last = user.last_seen_at if user.last_seen_at.tzinfo else user.last_seen_at.replace(tzinfo=timezone.utc)
-    if (now() - last).total_seconds() > 3600:
-        user.last_seen_at = now()
-        db.commit()
-    return user
-
-
-UserDep = Annotated[User, Depends(consented_user)]
-
-
-def cipher(settings: SettingsDep) -> Cipher:
-    return Cipher(settings.data_key)
-
-
-CipherDep = Annotated[Cipher, Depends(cipher)]
-
-
-# ---------- лимиты ----------
-
-_hits: dict[str, deque[float]] = defaultdict(deque)
-
-
-def rate_limit(bucket: str, user_id: int, per_hour: int) -> None:
-    q = _hits[f"{bucket}:{user_id}"]
-    t = time.monotonic()
-    while q and t - q[0] > 3600:
-        q.popleft()
-    if len(q) >= per_hour:
-        raise HTTPException(429, "too many requests")
-    q.append(t)
+from .deps import CipherDep, DbDep, SettingsDep, TgDep, UserDep, _hits, rate_limit  # noqa: E402,F401
 
 
 # ---------- служебное ----------
@@ -152,6 +122,10 @@ def accept_consent(body: ConsentIn, tg: TgDep, db: DbDep, settings: SettingsDep)
 def delete_me(user: UserDep, db: DbDep) -> dict:
     """Отзыв согласия = удаление всех данных сразу (152-ФЗ, ст. 9 и 21). В журнале остаётся обезличенный факт."""
     db.execute(delete(Entry).where(Entry.subject_id == user.subject_id))
+    reminders.delete_user_jobs(db, user.id)
+    db.execute(delete(PartnerGrant).where(PartnerGrant.owner_id == user.id))
+    db.execute(delete(Usage).where(Usage.user_id == user.id))
+    db.execute(update(Subscription).where(Subscription.user_id == user.id).values(user_id=None))
     db.execute(update(Consent).where(Consent.user_id == user.id).values(user_id=None))
     db.add(Consent(user_id=None, version=user.consent_version or "", action="deleted"))
     db.delete(user)
@@ -164,7 +138,7 @@ def delete_me(user: UserDep, db: DbDep) -> dict:
 
 
 def _entry_out(e: Entry, c: Cipher, subject) -> dict:
-    return {"data": json.loads(c.decrypt(subject, e.key, e.data_enc)), "version": e.version, "updatedAt": e.updated_at.isoformat()}
+    return entries.decode(e, c)
 
 
 @app.get("/v1/data")
@@ -181,23 +155,19 @@ class EntryIn(BaseModel):
 
 @app.put("/v1/data/{key}")
 def put_data(key: str, body: EntryIn, user: UserDep, db: DbDep, c: CipherDep, settings: SettingsDep):
-    if key not in DATA_KEYS:
+    if key not in entries.DATA_KEYS:
         raise HTTPException(404, "unknown key")
-    raw = json.dumps(body.data, ensure_ascii=False, separators=(",", ":")).encode()
-    if len(raw) > settings.max_entry_bytes:
+    if entries.raw_size(body.data) > settings.max_entry_bytes:
         raise HTTPException(413, "entry too large")
-    e = db.get(Entry, (user.subject_id, key))
-    current = e.version if e else None
-    if current != body.baseVersion:
-        # на другом устройстве данные уже поменялись — отдаём актуальные, клиент решит
-        return JSONResponse(status_code=409, content={"conflict": True, "current": _entry_out(e, c, user.subject_id) if e else None})
-    if e is None:
-        e = Entry(subject_id=user.subject_id, key=key, data_enc=c.encrypt(user.subject_id, key, raw), version=1)
-        db.add(e)
-    else:
-        e.data_enc = c.encrypt(user.subject_id, key, raw)
-        e.version += 1
-        e.updated_at = now()
+    try:
+        e = entries.write(db, c, user.subject_id, key, body.data, body.baseVersion)
+    except entries.Conflict as conflict:
+        # на другом устройстве (или ботом) данные уже поменялись — отдаём актуальные, клиент объединит
+        db.rollback()
+        cur = conflict.current
+        return JSONResponse(status_code=409, content={"conflict": True, "current": entries.decode(cur, c) if cur else None})
+    if key in reminders.TRIGGER_KEYS:
+        reminders.replan(db, c, user)
     db.commit()
     return {"version": e.version, "updatedAt": e.updated_at.isoformat()}
 
@@ -245,13 +215,14 @@ async def send_file(body: FileIn, user: UserDep, settings: SettingsDep) -> dict:
 
 
 @app.post("/v1/chat", response_model=ChatReply, response_model_exclude_none=True)
-async def chat(body: ChatRequest, user: UserDep, settings: SettingsDep):
+async def chat(body: ChatRequest, user: UserDep, db: DbDep, settings: SettingsDep):
     # красные флаги — всегда, даже если ИИ выключен
     if is_emergency(body.symptom) or any(is_emergency(m.text) for m in body.history if m.role == "user"):
         return emergency_reply(body.symptom)
     if not settings.ai_enabled:
         raise HTTPException(503, "ai disabled")
     rate_limit("chat", user.tg_id, settings.chat_per_hour)
+    billing.use(db, user, "ai", billing.entitlement(db, user, s=settings).ai_per_day)
     try:
         reply = await get_provider(settings).reply(body)
     except ProviderUnavailable as e:
@@ -263,6 +234,49 @@ async def chat(body: ChatRequest, user: UserDep, settings: SettingsDep):
         log.warning("ai reply blocked by policy")
         raise HTTPException(502, "reply blocked")
     return reply
+
+
+# ---------- безопасность ----------
+
+
+@app.post("/v1/security/pin-reset")
+async def pin_reset(user: UserDep, settings: SettingsDep) -> dict:
+    """Код-пароль сброшен на устройстве — сообщаем владельцу в чат (вдруг это сделал не он)"""
+    rate_limit("pinreset", user.tg_id, 5)
+    try:
+        await get_bot().send(
+            user.tg_id,
+            "🔐 В приложении «Код Тела» сбросили код-пароль.\n\nЕсли это была не ты — включи код заново: Профиль → Код-пароль.",
+        )
+    except BotError:
+        pass
+    return {"ok": True}
+
+
+# ---------- бот ----------
+
+_bot: Bot | None = None
+
+
+def get_bot() -> Bot:
+    global _bot
+    if _bot is None:
+        _bot = Bot(get_settings().bot_token)
+    return _bot
+
+
+@app.post("/bot/webhook")
+async def bot_webhook(
+    request: Request,
+    db: DbDep,
+    settings: SettingsDep,
+    x_telegram_bot_api_secret_token: Annotated[str | None, Header()] = None,
+) -> dict:
+    if not settings.bot_token or x_telegram_bot_api_secret_token != webhook_secret(settings.bot_token):
+        raise HTTPException(403, "forbidden")
+    update = await request.json()
+    await handle_update(get_bot(), db, settings, update)
+    return {"ok": True}
 
 
 @app.exception_handler(Exception)

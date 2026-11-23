@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { createHashRouter, Navigate, RouterProvider, type RouteObject } from 'react-router'
 import './styles.css'
-import { initTelegram } from './lib/telegram'
+import { getStartParam, initTelegram } from './lib/telegram'
 import { useApp } from './store/app'
 import { AppLayout } from './ui/Layout'
 import { Onboarding } from './screens/Onboarding'
@@ -21,12 +21,27 @@ import { Mood } from './screens/Mood'
 import { BodyCode } from './screens/BodyCode'
 import { ConsentText, PrivacyPolicy } from './screens/Legal'
 import { MyData } from './screens/MyData'
+import { Reminders } from './screens/Reminders'
+import { Pill } from './screens/Pill'
+import { Mode } from './screens/Mode'
+import { ImportHistory } from './screens/ImportHistory'
+import { Security } from './screens/Security'
+import { ArticlePage, Articles } from './screens/Articles'
+import { Plus } from './screens/Plus'
+import { LockGate } from './ui/LockGate'
+import { Partner } from './screens/Partner'
+import { PartnerView } from './screens/PartnerView'
+import { PARTNER_START } from './lib/partner'
 import { ConsentForm } from './screens/Onboarding'
 import { CONSENT_VERSION } from './lib/legal'
 import { startSync } from './lib/sync'
 
 initTelegram()
 startSync()
+
+// ссылка партнёра t.me/<bot>?startapp=p_<token> — сразу на экран партнёра
+const start = getStartParam()
+if (start?.startsWith(PARTNER_START) && !location.hash.startsWith('#/partner/')) location.hash = `#/partner/${start.slice(PARTNER_START.length)}`
 
 function RequireProfile({ children }: { children: React.ReactNode }) {
   const profile = useApp((s) => s.profile)
@@ -47,6 +62,7 @@ const routes: RouteObject[] = [
   { path: '/welcome', element: <Onboarding /> },
   { path: '/privacy', element: <PrivacyPolicy /> },
   { path: '/consent-text', element: <ConsentText /> },
+  { path: '/partner/:token', element: <PartnerView /> },
   {
     element: (
       <RequireProfile>
@@ -69,6 +85,15 @@ const routes: RouteObject[] = [
       { path: '/mood', element: <Mood /> },
       { path: '/code', element: <BodyCode /> },
       { path: '/data', element: <MyData /> },
+      { path: '/reminders', element: <Reminders /> },
+      { path: '/pill', element: <Pill /> },
+      { path: '/mode', element: <Mode /> },
+      { path: '/import', element: <ImportHistory /> },
+      { path: '/security', element: <Security /> },
+      { path: '/articles', element: <Articles /> },
+      { path: '/articles/:id', element: <ArticlePage /> },
+      { path: '/plus', element: <Plus /> },
+      { path: '/partner', element: <Partner /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
@@ -80,6 +105,8 @@ const router = createHashRouter(routes)
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <div className="app-backdrop" />
-    <RouterProvider router={router} />
+    <LockGate>
+      <RouterProvider router={router} />
+    </LockGate>
   </StrictMode>,
 )

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
-import { useApp } from '../store/app'
+import { useApp, type DayExtra } from '../store/app'
+import { DISCHARGE, parseField, RANGES, SEX, TEST, UNUSUAL_HINT, type NumField } from '../lib/dayLog'
 import { FLOWS, MARKS, PHASES } from '../lib/cycle'
 import { fromISO, type ISODate } from '../lib/date'
 import { useCycleToday } from '../lib/useCycleToday'
@@ -25,7 +26,11 @@ export const SYMPTOMS: { name: string; emoji: string }[] = [
 ]
 
 export function DaySheet({ date, onClose }: { date: ISODate; onClose: () => void }) {
-  const { periodDays, setPeriodDay, moods, setMood, symptoms, toggleSymptom, moodNotes, setDayNote } = useApp()
+  const { periodDays, setPeriodDay, moods, setMood, symptoms, toggleSymptom, moodNotes, setDayNote, dayLog, setDayExtra, mode } = useApp()
+  const extra = dayLog[date] ?? {}
+  const conceive = mode.kind === 'conceive'
+  const [more, setMore] = useState(conceive || ['sleep', 'water', 'weight', 'bbt', 'lh', 'preg'].some((k) => k in extra))
+  const pick = <K extends keyof DayExtra>(k: K, v: DayExtra[K]) => setDayExtra(date, { [k]: extra[k] === v ? undefined : v } as Partial<DayExtra>)
   const { model, today } = useCycleToday()
   const st = model.status(date)
   const future = date > today
@@ -123,6 +128,65 @@ export function DaySheet({ date, onClose }: { date: ISODate; onClose: () => void
               </div>
             </Block>
 
+            <Block title="Выделения">
+              <div className="flex flex-wrap gap-2">
+                {DISCHARGE.map((o) => (
+                  <Pill key={o.v} active={extra.discharge === o.v} onClick={() => pick('discharge', o.v)}>
+                    {o.label}
+                  </Pill>
+                ))}
+              </div>
+              {extra.discharge === 'unusual' && <p className="mt-2 text-[12px] leading-snug text-muted">{UNUSUAL_HINT}</p>}
+            </Block>
+
+            <Block title="Близость">
+              <div className="flex flex-wrap gap-2">
+                {SEX.map((o) => (
+                  <Pill key={o.v} active={extra.sex === o.v} tone="pink" onClick={() => pick('sex', o.v)}>
+                    {o.label}
+                  </Pill>
+                ))}
+              </div>
+            </Block>
+
+            {!more ? (
+              <button onClick={() => setMore(true)} className="mt-5 w-full rounded-2xl bg-white/70 py-3 text-[14px] font-semibold text-accent">
+                Ещё: сон, вода, вес, температура, тесты
+              </button>
+            ) : (
+              <>
+                {conceive && (
+                  <>
+                    <Block title="Базальная температура">
+                      <NumInput field="bbt" value={extra.bbt} onChange={(v) => setDayExtra(date, { bbt: v })} placeholder="36,60" />
+                    </Block>
+                    <TestBlock title="Тест на овуляцию" value={extra.lh} onPick={(v) => pick('lh', v)} />
+                  </>
+                )}
+                <Block title="Сон и вода">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Counter label="Сон, ч" value={extra.sleep} step={0.5} max={24} onChange={(v) => setDayExtra(date, { sleep: v })} />
+                    <Counter label="Вода, стаканов" value={extra.water} step={1} max={30} onChange={(v) => setDayExtra(date, { water: v })} />
+                  </div>
+                </Block>
+                <Block title="Вес">
+                  <NumInput field="weight" value={extra.weight} onChange={(v) => setDayExtra(date, { weight: v })} placeholder="58,5" />
+                </Block>
+                {!conceive && (
+                  <Block title="Базальная температура">
+                    <NumInput field="bbt" value={extra.bbt} onChange={(v) => setDayExtra(date, { bbt: v })} placeholder="36,60" />
+                  </Block>
+                )}
+                {!conceive && <TestBlock title="Тест на овуляцию" value={extra.lh} onPick={(v) => pick('lh', v)} />}
+                <TestBlock title="Тест на беременность" value={extra.preg} onPick={(v) => pick('preg', v)} />
+                {extra.preg === 'pos' && mode.kind !== 'pregnancy' && (
+                  <p className="mt-2 text-[12px] leading-snug text-muted">
+                    Если беременность подтвердится, можно включить режим «Беременность» в Профиль → Моя цель. Подтвердить её и определить срок поможет врач.
+                  </p>
+                )}
+              </>
+            )}
+
             <Block title="Заметка">
               <textarea
                 value={note}
@@ -150,6 +214,69 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
     <div className="mt-5">
       <h3 className="mb-2.5 text-[15px] font-bold">{title}</h3>
       {children}
+    </div>
+  )
+}
+
+function TestBlock({ title, value, onPick }: { title: string; value: 'neg' | 'pos' | undefined; onPick: (v: 'neg' | 'pos') => void }) {
+  return (
+    <Block title={title}>
+      <div className="flex flex-wrap gap-2">
+        {TEST.map((o) => (
+          <Pill key={o.v} active={value === o.v} onClick={() => onPick(o.v)}>
+            {o.label}
+          </Pill>
+        ))}
+      </div>
+    </Block>
+  )
+}
+
+function Counter({ label, value, step, max, onChange }: { label: string; value: number | undefined; step: number; max: number; onChange: (v: number | undefined) => void }) {
+  const v = value ?? 0
+  const set = (n: number) => {
+    haptic.select()
+    const x = Math.round(Math.min(max, Math.max(0, n)) * 10) / 10
+    onChange(x === 0 ? undefined : x)
+  }
+  return (
+    <div className="rounded-2xl bg-white p-3 shadow-card">
+      <div className="text-[12px] text-muted">{label}</div>
+      <div className="mt-1 flex items-center justify-between">
+        <button aria-label={`${label}: меньше`} onClick={() => set(v - step)} className="grid size-8 place-items-center rounded-full bg-brand-soft text-[18px] text-accent">
+          −
+        </button>
+        <span className="text-[18px] font-bold">{value === undefined ? '—' : String(v).replace('.', ',')}</span>
+        <button aria-label={`${label}: больше`} onClick={() => set(v + step)} className="grid size-8 place-items-center rounded-full bg-brand-soft text-[18px] text-accent">
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function NumInput({ field, value, onChange, placeholder }: { field: NumField; value: number | undefined; onChange: (v: number | undefined) => void; placeholder: string }) {
+  const [text, setText] = useState(value === undefined ? '' : String(value).replace('.', ','))
+  const parsed = parseField(field, text)
+  const r = RANGES[field]
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <input
+          inputMode="decimal"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => parsed !== null && onChange(parsed)}
+          placeholder={placeholder}
+          className={`h-12 w-36 rounded-2xl bg-white px-4 text-[16px] shadow-card outline-none focus:ring-2 focus:ring-accent/40 ${parsed === null ? 'ring-2 ring-bad' : ''}`}
+        />
+        <span className="text-[14px] text-muted">{r.unit}</span>
+      </div>
+      {parsed === null && (
+        <p className="mt-1 text-[12px] text-bad">
+          Введи число от {r.min} до {r.max}
+        </p>
+      )}
     </div>
   )
 }

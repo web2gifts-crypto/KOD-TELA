@@ -18,14 +18,20 @@ import { buildNotifications, buildRecs, type RecCategory } from '../lib/insights
 import { useCycleToday } from '../lib/useCycleToday'
 import { moodStreak, yuviState } from '../lib/yuvi'
 import { getUser, haptic } from '../lib/telegram'
+import { pillDay } from '../lib/pill'
+import { ConceiveCard, PregnancyHero } from '../ui/ModeCards'
+import { articlesFor } from '../lib/articles'
+import { ArticleCard } from './Articles'
 
 // Главная: Юви рядом → «Сегодня» (цикл: фаза, кольцо, неделя) → настроение | чат,
 // ниже — мои показатели и в самом низу совет дня. Плавающего Юви на главной нет — он в карточке.
 
 export function Home() {
   const nav = useNavigate()
-  const { profile, readNotifications, introSeen } = useApp()
+  const { profile, readNotifications, introSeen, mode } = useApp()
   const { today, info, next, settings, model } = useCycleToday()
+  // в режиме беременности фазы цикла не используем — советы и реплики общие
+  const cycleInfo = mode.kind === 'pregnancy' ? null : info
   const unread = buildNotifications({ phase: info?.phase ?? null, cycleDay: info?.day ?? null, periodInDays: next?.inDays ?? null }).some(
     (n) => !readNotifications.includes(n.id),
   )
@@ -44,14 +50,64 @@ export function Home() {
         </button>
       </header>
 
-      <YuviCard info={info} today={today} />
-      <TodayHero info={info} settings={settings} model={model} today={today} nextInDays={next?.inDays ?? null} />
+      <YuviCard info={cycleInfo} today={today} />
+      {mode.kind === 'pregnancy' ? (
+        <PregnancyHero today={today} />
+      ) : (
+        <TodayHero info={info} settings={settings} model={model} today={today} nextInDays={next?.inDays ?? null} />
+      )}
+      {mode.kind === 'conceive' && <ConceiveCard model={model} today={today} />}
+      {mode.kind !== 'pregnancy' && <PillToday today={today} />}
       <ActionTiles today={today} />
       <Metrics />
-      <Insight phase={info?.phase ?? null} />
+      <Insight phase={cycleInfo?.phase ?? null} />
+      <ReadNext phase={cycleInfo?.phase ?? null} />
 
       {!introSeen && <IntroTour />}
     </div>
+  )
+}
+
+/** «Таблетка сегодня» — только если ведётся контрацепция и сегодня день приёма */
+function PillToday({ today }: { today: ISODate }) {
+  const nav = useNavigate()
+  const { pill, pillLog, togglePillTaken } = useApp()
+  const pd = pillDay(pill, today)
+  if (!pd?.active) return null
+  const taken = !!pillLog[today]
+  return (
+    <div className="glass mt-3 flex items-center gap-3 rounded-card p-3 pl-4 shadow-card">
+      <button onClick={() => nav('/pill')} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <span className="text-[24px]">💊</span>
+        <span>
+          <span className="block text-[15px] font-semibold">{taken ? 'Таблетка выпита' : 'Таблетка на сегодня'}</span>
+          <span className="block text-[12px] text-muted">№ {pd.index} из 28</span>
+        </span>
+      </button>
+      <button
+        onClick={() => {
+          taken ? haptic.select() : haptic.success()
+          togglePillTaken(today)
+        }}
+        className={`h-10 shrink-0 rounded-full px-4 text-[13px] font-semibold transition active:scale-95 ${taken ? 'bg-ok/15 text-ok' : 'bg-brand text-white shadow-btn'}`}
+      >
+        {taken ? '✓ Выпила' : 'Выпила'}
+      </button>
+    </div>
+  )
+}
+
+/** «Почитать»: статья для текущей фазы */
+function ReadNext({ phase }: { phase: Phase | null }) {
+  const nav = useNavigate()
+  const mode = useApp((s) => s.mode.kind)
+  const a = articlesFor(phase, mode)[0]
+  if (!a) return null
+  return (
+    <section className="mt-6 pb-4">
+      <SectionTitle action={<button onClick={() => nav('/articles')} className="text-[13px] font-semibold text-accent">Все статьи</button>}>Почитать</SectionTitle>
+      <ArticleCard a={a} />
+    </section>
   )
 }
 

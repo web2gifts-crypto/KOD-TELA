@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware'
 import { fillPeriod, startsFromDays, type CycleSettings } from '../lib/cycle'
 import { today, type ISODate } from '../lib/date'
 import { LAB_BY_CODE, type LabItem } from '../lib/labs'
+import { defaultReminders, type ReminderSettings } from '../lib/reminders'
+import type { PillSettings } from '../lib/pill'
 
 // Локальное состояние MVP. На этапе бэкенда эти данные переезжают в API,
 // а стор останется кэшем UI.
@@ -47,6 +49,31 @@ export interface Verdict {
   whenDoctor?: string[]
 }
 
+/** Расширенные отметки дня (сверх месячных, настроения и симптомов) */
+export interface DayExtra {
+  discharge?: 'dry' | 'sticky' | 'creamy' | 'watery' | 'eggwhite' | 'unusual'
+  sex?: 'protected' | 'unprotected' | 'none'
+  /** часы сна */
+  sleep?: number
+  /** стаканы воды */
+  water?: number
+  /** вес, кг */
+  weight?: number
+  /** базальная температура, °C */
+  bbt?: number
+  /** тест на овуляцию (ЛГ) */
+  lh?: 'neg' | 'pos'
+  /** тест на беременность */
+  preg?: 'neg' | 'pos'
+}
+
+/** Режим приложения под цель */
+export interface AppMode {
+  kind: 'cycle' | 'conceive' | 'pregnancy'
+  /** для беременности — первый день последних месячных (от него считаются недели) */
+  pregnancyLmp?: ISODate
+}
+
 export interface ChatSession {
   id: string
   startedAt: number
@@ -80,6 +107,15 @@ export interface AppState {
   consent: { version: string; at: number } | null
   /** какие реплики Юви и когда показывались — чтобы не повторяться */
   talkSeen: Record<string, ISODate>
+  /** напоминания в Telegram (null — ещё не настраивались) */
+  reminders: ReminderSettings | null
+  /** контрацепция (null — не используется) */
+  pill: PillSettings | null
+  /** отметки «выпила» */
+  pillLog: Record<ISODate, number>
+  /** расширенные отметки дня */
+  dayLog: Record<ISODate, DayExtra>
+  mode: AppMode
 
   completeOnboarding: (p: Profile, cycle?: Partial<CycleSettings>) => void
   setCycle: (c: Partial<CycleSettings>) => void
@@ -98,6 +134,14 @@ export interface AppState {
   markRead: (ids: string[]) => void
   markTalkSeen: (id: string) => void
   acceptConsent: (version: string) => void
+  setReminders: (patch: Partial<ReminderSettings>) => void
+  setPill: (p: PillSettings | null) => void
+  togglePillTaken: (d: ISODate) => void
+  /** поле undefined — снять отметку */
+  setDayExtra: (d: ISODate, patch: Partial<DayExtra>) => void
+  setMode: (m: AppMode) => void
+  /** добавить дни месячных разом (перенос истории) */
+  mergePeriodDays: (days: Record<ISODate, number>) => void
   /** применить данные с сервера (синхронизация) */
   applyRemote: (patch: Partial<AppState>) => void
   resetAll: () => void
@@ -130,6 +174,11 @@ const initial = {
   readNotifications: [],
   talkSeen: {},
   consent: null,
+  reminders: null as ReminderSettings | null,
+  pill: null as PillSettings | null,
+  pillLog: {},
+  dayLog: {},
+  mode: { kind: 'cycle' } as AppMode,
 }
 
 export const useApp = create<AppState>()(
@@ -184,6 +233,26 @@ export const useApp = create<AppState>()(
       markRead: (ids) => set((s) => ({ readNotifications: [...new Set([...s.readNotifications, ...ids])] })),
       applyRemote: (patch) =>
         set((s) => (patch.periodDays || patch.cycle ? { ...patch, ...syncPeriods(patch.periodDays ?? s.periodDays, { ...s.cycle, ...patch.cycle }) } : patch)),
+      setReminders: (patch) => set((s) => ({ reminders: { ...(s.reminders ?? defaultReminders()), ...patch } })),
+      setPill: (pill) => set({ pill }),
+      togglePillTaken: (d) =>
+        set((s) => {
+          const pillLog = { ...s.pillLog }
+          if (pillLog[d]) delete pillLog[d]
+          else pillLog[d] = 1
+          return { pillLog }
+        }),
+      setDayExtra: (d, patch) =>
+        set((s) => {
+          const cur: DayExtra = { ...s.dayLog[d], ...patch }
+          for (const k of Object.keys(cur) as (keyof DayExtra)[]) if (cur[k] === undefined) delete cur[k]
+          const dayLog = { ...s.dayLog }
+          if (Object.keys(cur).length) dayLog[d] = cur
+          else delete dayLog[d]
+          return { dayLog }
+        }),
+      setMode: (mode) => set({ mode }),
+      mergePeriodDays: (days) => set((s) => syncPeriods({ ...days, ...s.periodDays }, s.cycle)),
       acceptConsent: (version) => set({ consent: { version, at: Date.now() } }),
       markTalkSeen: (id) => set((s) => ({ talkSeen: { ...s.talkSeen, [id]: today() } })),
       resetAll: () => set(initial),
@@ -191,7 +260,7 @@ export const useApp = create<AppState>()(
     }),
     {
       name: 'kodtela',
-      version: 7,
+      version: 8,
       migrate: migrateState,
     },
   ),
@@ -224,6 +293,12 @@ export function migrateState(old: unknown): AppState {
   }))
   // v7: согласие хранится отдельно с версией текстов; старое (без версии) — попросим заново
   if (st.consent === undefined) st.consent = null
+  // v8: напоминания, контрацепция, расширенные отметки дня, режим
+  st.reminders ??= null
+  st.pill ??= null
+  st.pillLog ??= {}
+  st.dayLog ??= {}
+  st.mode ??= { kind: 'cycle' }
   return st
 }
 

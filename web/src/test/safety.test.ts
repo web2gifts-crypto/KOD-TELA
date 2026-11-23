@@ -8,6 +8,9 @@ import { buildRecs, buildNotifications } from '../lib/insights'
 import { PHASES, type Phase } from '../lib/cycle'
 import { LAB_DISCLAIMER, LAB_INFO } from '../lib/labs'
 import { FUN_LINES, MOOD_REACTIONS } from '../lib/yuviTalk'
+import { ARTICLES } from '../lib/articles'
+import { FORECAST_DISCLAIMER } from '../lib/mode'
+import { UNUSUAL_HINT } from '../lib/dayLog'
 import type { Verdict } from '../store/app'
 
 const PHASE_LIST = Object.keys(PHASES) as Phase[]
@@ -124,5 +127,20 @@ describe('остальные тексты приложения', () => {
       expect(violatesPolicy(t), t).toBe(false)
       expect(t).not.toMatch(/пузыри не грустят/i)
     }
+  })
+})
+
+describe('статьи и новые тексты', () => {
+  it('статьи — без диагнозов, «норм», лекарств и дозировок', () => {
+    for (const a of ARTICLES) for (const t of [a.title, a.lead, ...a.body]) expect(violatesPolicy(t), `${a.id}: ${t}`).toBe(false)
+  })
+  it('статьи с упоминанием опасных признаков называют 103/112', () => {
+    for (const a of ARTICLES) if (/кровотечени|резк[а-яё]* боль/i.test(a.body.join(' '))) expect(a.body.join(' '), a.id).toMatch(/103|112/)
+  })
+  it('пока врач не проверил — статья помечена', () => {
+    for (const a of ARTICLES) expect(a.reviewed || !a.reviewer).toBe(true)
+  })
+  it('подсказки режимов и отметок', () => {
+    for (const t of [FORECAST_DISCLAIMER, UNUSUAL_HINT]) expect(violatesPolicy(t)).toBe(false)
   })
 })

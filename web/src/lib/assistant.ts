@@ -55,6 +55,10 @@ export const RemoteAssistant: Assistant = {
     const fallback = () => ScriptedAssistant.reply(req)
     try {
       const res = await apiFetch('/v1/chat', { method: 'POST', body: JSON.stringify(req) })
+      if (res.status === 429) {
+        const r = await fallback()
+        return { ...r, text: 'Вопросы ИИ на сегодня закончились — отвечу по своим подсказкам. В «Код Тела+» вопросов больше.\n\n' + r.text }
+      }
       if (!res.ok) return fallback()
       const data = (await res.json()) as AssistantReply
       const all = [data.text, data.verdict?.title, data.verdict?.explanation, ...(data.verdict?.plan ?? []), ...(data.verdict?.whenDoctor ?? [])].join('\n')

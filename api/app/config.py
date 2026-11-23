@@ -26,8 +26,16 @@ class Settings(BaseSettings):
     init_data_ttl: int = 24 * 3600
     # откуда разрешены запросы (Mini App)
     allowed_origins: str = "https://app.kodtela.tech"
+    # адреса — для кнопок бота и вебхука
+    webapp_url: str = "https://app.kodtela.tech/"
+    public_api_url: str = "https://api.kodtela.tech"
+    bot_username: str = "kodtela_app"
+    # ставить вебхук бота и меню команд при старте (только на проде)
+    bot_webhook: bool = False
+    # чат, куда бот шлёт технические алерты (ошибки API, сбои воркера); пусто — никуда
+    admin_chat_id: int | None = None
     # текущая версия согласия на обработку данных; при смене — спросим заново
-    consent_version: str = "2026-11-23"
+    consent_version: str = "2026-11-23.2"
 
     # --- ИИ (GigaChat). Настраивает отдельный разработчик, см. docs/AI.md ---
     ai_enabled: bool = False
@@ -35,6 +43,15 @@ class Settings(BaseSettings):
     gigachat_auth_key: str = ""  # ключ авторизации из личного кабинета Sber
     gigachat_scope: str = "GIGACHAT_API_PERS"
     gigachat_model: str = "GigaChat"
+
+    # «Код Тела+»: цены в звёздах Telegram
+    plus_month_stars: int = 149
+    plus_year_stars: int = 1190
+    # лимиты по тарифам
+    ai_per_day_free: int = 5
+    ai_per_day_plus: int = 100
+    partners_free: int = 1
+    partners_plus: int = 3
 
     # лимиты
     max_entry_bytes: int = 1_000_000

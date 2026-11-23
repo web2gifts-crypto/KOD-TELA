@@ -8,6 +8,7 @@ import { useCycleToday } from '../lib/useCycleToday'
 import { haptic } from '../lib/telegram'
 import { Button, IconButton, TONES } from '../ui/kit'
 import { DaySheet } from '../ui/DaySheet'
+import { BbtChart, PregnancyHero } from '../ui/ModeCards'
 
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
@@ -15,6 +16,7 @@ export function Cycle() {
   const { model, info, today } = useCycleToday()
   const [editing, setEditing] = useState(false)
   const [openDay, setOpenDay] = useState<ISODate | null>(null)
+  const mode = useApp((s) => s.mode.kind)
 
   return (
     <div className="pt-safe px-4">
@@ -22,9 +24,18 @@ export function Cycle() {
         <h1 className="text-[26px] font-bold leading-tight">Календарь цикла</h1>
       </header>
 
-      <Summary model={model} info={info} onMark={() => setEditing(true)} />
+      {mode === 'pregnancy' ? (
+        <PregnancyHero today={today} />
+      ) : (
+        <Summary model={model} info={info} onMark={() => setEditing(true)} />
+      )}
       <MonthGrid model={model} today={today} editing={editing} onDone={() => setEditing(false)} onOpen={setOpenDay} />
-      <MyCycle model={model} />
+      {mode === 'conceive' && (
+        <div className="mt-3">
+          <BbtChart model={model} today={today} />
+        </div>
+      )}
+      {mode !== 'pregnancy' && <MyCycle model={model} />}
 
       {openDay && <DaySheet date={openDay} onClose={() => setOpenDay(null)} />}
     </div>
@@ -34,6 +45,7 @@ export function Cycle() {
 /* ---------- сводка дня ---------- */
 
 function Summary({ model, info, onMark }: { model: CycleModel; info: ReturnType<typeof useCycleToday>['info']; onMark: () => void }) {
+  const nav = useNavigate()
   if (!info)
     return (
       <section className="glass rounded-card p-5 shadow-card">
@@ -42,6 +54,9 @@ function Summary({ model, info, onMark }: { model: CycleModel; info: ReturnType<
         <Button className="mt-4" onClick={onMark}>
           Отметить месячные
         </Button>
+        <button onClick={() => nav('/import')} className="mt-3 w-full text-center text-[13px] font-semibold text-accent">
+          Перенести историю из Flo / Clue →
+        </button>
       </section>
     )
 

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router'
-import { Bell, CalendarHeart, ChevronRight, CircleHelp, FlaskConical, MessageCircle, ShieldCheck, Smile, Wand2 } from 'lucide-react'
+import { Bell, BellRing, FileUp, HeartHandshake, LockKeyhole, CalendarHeart, Pill, ChevronRight, CircleHelp, FlaskConical, MessageCircle, ShieldCheck, Smile, Sparkles, Target, Wand2 } from 'lucide-react'
 import { useApp } from '../store/app'
 import { Yuvi } from '../ui/Yuvi'
 import { GlassIcon, PageHeader, type Tone } from '../ui/kit'
@@ -9,12 +9,13 @@ import { plural } from '../lib/date'
 import { useCycleToday } from '../lib/useCycleToday'
 import { getUser, haptic, inTelegram } from '../lib/telegram'
 import { demoData } from '../lib/demo'
+import { MODES } from '../lib/mode'
 
 // Профиль открывается по аватарке на главной. Статистика — во вкладке «Код тела».
 
 export function Profile() {
   const nav = useNavigate()
-  const { profile, labs, chats, loadData } = useApp()
+  const { profile, labs, chats, loadData, mode } = useApp()
   const user = getUser()
   const { info } = useCycleToday()
   if (!profile) return null
@@ -22,11 +23,17 @@ export function Profile() {
   const sub = [profile.age && `${profile.age} ${plural(profile.age, 'год', 'года', 'лет')}`, info && PHASES[info.phase].name].filter(Boolean).join(' · ')
 
   const items: { icon: typeof Bell; tone: Tone; label: string; badge?: number; to?: string }[] = [
+    { icon: Target, tone: 'mint', label: `Моя цель: ${MODES.find((m) => m.kind === mode.kind)?.title.toLowerCase()}`, to: '/mode' },
     { icon: CalendarHeart, tone: 'pink', label: 'Мой цикл и календарь', to: '/cycle' },
+    { icon: HeartHandshake, tone: 'violet', label: 'Партнёр', to: '/partner' },
+    { icon: FileUp, tone: 'blue', label: 'Перенести историю из Flo / Clue', to: '/import' },
     { icon: FlaskConical, tone: 'violet', label: 'История анализов', badge: labs.length, to: '/labs' },
     { icon: MessageCircle, tone: 'blue', label: 'История диалогов с Юви', badge: chats.length, to: '/history' },
     { icon: Smile, tone: 'mint', label: 'Индикатор настроения Юви', to: '/yuvi' },
-    { icon: Bell, tone: 'peach', label: 'Уведомления', to: '/notifications' },
+    { icon: BellRing, tone: 'peach', label: 'Напоминания в Telegram', to: '/reminders' },
+    { icon: Pill, tone: 'pink', label: 'Контрацепция', to: '/pill' },
+    { icon: Bell, tone: 'blue', label: 'Уведомления', to: '/notifications' },
+    { icon: LockKeyhole, tone: 'mint', label: 'Код-пароль', to: '/security' },
     { icon: ShieldCheck, tone: 'violet', label: 'Мои данные и конфиденциальность', to: '/data' },
     { icon: CircleHelp, tone: 'blue', label: 'Помощь' },
   ]
@@ -76,6 +83,17 @@ export function Profile() {
             <div className="text-[13px] text-white/85">Цикл, настроение и анализы за всё время</div>
           </div>
           <ChevronRight className="relative" size={20} />
+        </button>
+
+        <button onClick={() => nav('/plus')} className="glass mt-3 flex w-full items-center gap-3 rounded-card p-4 text-left shadow-card">
+          <span className="grid size-9 place-items-center rounded-full bg-brand text-white">
+            <Sparkles size={18} />
+          </span>
+          <span className="flex-1">
+            <span className="block text-[15px] font-semibold">Код Тела+</span>
+            <span className="block text-[12px] text-muted">Больше вопросов ИИ, больше партнёров</span>
+          </span>
+          <ChevronRight size={18} className="text-muted" />
         </button>
 
         <div className="glass mt-3 overflow-hidden rounded-card shadow-card">

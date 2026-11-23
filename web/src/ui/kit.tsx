@@ -150,3 +150,21 @@ export function GlassIcon({ icon: Icon, tone = 'violet', size = 44 }: { icon: Re
     </span>
   )
 }
+
+export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={() => {
+        haptic.select()
+        onChange(!on)
+      }}
+      className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-accent' : 'bg-muted/30'}`}
+    >
+      <span className={`absolute top-0.5 size-6 rounded-full bg-white shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
+    </button>
+  )
+}
