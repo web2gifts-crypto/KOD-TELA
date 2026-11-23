@@ -61,7 +61,7 @@ function YuviSays({ mood, children, size = 150 }: { mood?: YuviMood; children: R
 function Brand({ onNext }: { onNext: () => void }) {
   const pillars = [
     { icon: CalendarHeart, tone: 'pink' as const, t: 'Цикл', d: 'фазы, прогноз и фертильные дни' },
-    { icon: FlaskConical, tone: 'violet' as const, t: 'Анализы', d: 'расшифровка простым языком' },
+    { icon: FlaskConical, tone: 'violet' as const, t: 'Анализы', d: 'дневник результатов и динамика' },
     { icon: Smile, tone: 'blue' as const, t: 'Самочувствие', d: 'настроение, симптомы и советы' },
   ]
   return (
@@ -121,7 +121,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
 function Skills({ onNext }: { onNext: () => void }) {
   const skills = [
     { icon: Sparkles, t: 'Понимаю тебя и твои данные', d: 'цикл, настроение, симптомы — в одной картине' },
-    { icon: HeartPulse, t: 'Анализирую показатели', d: 'и объясняю результаты анализов простыми словами' },
+    { icon: HeartPulse, t: 'Веду дневник анализов', d: 'и показываю, как меняются твои показатели' },
     { icon: ShieldCheck, t: 'Забочусь и поддерживаю', d: 'напомню, подскажу и скажу, когда пора к врачу' },
   ]
   return (

@@ -2,7 +2,8 @@
 // и печатается в PDF. Удобно показать врачу. На этапе бэкенда бот пришлёт его в чат.
 
 import { formatDay, today as todayISO } from './date'
-import { cycleStats, labTrends, moodStats, symptomStats } from './stats'
+import { cycleStats, moodStats, symptomStats } from './stats'
+import { formatRef, itemName, latestValues, LAB_DISCLAIMER } from './labs'
 import { MARKS, PHASES } from './cycle'
 import type { AppData } from '../store/app'
 
@@ -15,7 +16,7 @@ export function buildReport(d: AppData): { filename: string; html: string } {
   const cs = cycleStats(d.periodStarts)
   const ms = moodStats(d.moods, d.moodNotes)
   const ss = symptomStats(d.symptoms, d.periodStarts, d.cycle)
-  const lt = labTrends(d.labs)
+  const lv = latestValues(d.labs)
 
   const row = (k: string, v: string) => `<tr><td>${k}</td><td><b>${v}</b></td></tr>`
   const cycleRows = [
@@ -39,14 +40,14 @@ export function buildReport(d: AppData): { filename: string; html: string } {
     ? ss.map((s) => row(esc(s.name), `${s.count} раз${s.phase ? ` · чаще: ${PHASES[s.phase].name.toLowerCase()}` : ''}`)).join('')
     : row('Симптомы', 'не отмечались')
 
-  const labRows = lt.length
-    ? lt
-        .map(({ ev, prev }) => {
-          const st = { ok: 'норма', warn: 'внимание', bad: ev.direction === 'low' ? 'ниже нормы' : 'выше нормы' }[ev.status]
-          return `<tr><td>${ev.def.name}</td><td><b>${ev.value} ${ev.def.unit}</b>${prev !== null ? ` <span class="m">(было ${prev})</span>` : ''}</td><td>${ev.def.min}–${ev.def.max}</td><td class="${ev.status}">${st}</td></tr>`
+  const labRows = lv.length
+    ? lv
+        .map(({ item, date, prev }) => {
+          const ref = formatRef(item)
+          return `<tr><td>${esc(itemName(item))}</td><td><b>${item.value} ${esc(item.unit)}</b> <span class="m">${formatDay(date, true)}</span></td><td>${ref ? `${ref} ${esc(item.unit)}` : '—'}</td><td>${prev ? `${prev.value} <span class="m">${formatDay(prev.date, true)}</span>` : '—'}</td></tr>`
         })
         .join('')
-    : '<tr><td colspan="4">Анализы не загружались</td></tr>'
+    : '<tr><td colspan="4">Анализы не вносились</td></tr>'
 
   const html = `<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -66,7 +67,8 @@ td{padding:8px 6px;border-bottom:1px solid #ebe9fa;vertical-align:top}.m{color:#
 <p class="sub">Разметка календаря: ${Object.values(MARKS).map((m) => m.label.toLowerCase()).join(', ')} — по прогнозу приложения.</p>
 <h2>Настроение</h2><table>${moodRows}</table>
 <h2>Симптомы</h2><table>${symptomRows}</table>
-<h2>Анализы (последние значения)</h2><table><tr><td class="m">Показатель</td><td class="m">Значение</td><td class="m">Норма</td><td class="m">Статус</td></tr>${labRows}</table>
+<h2>Анализы (последние значения)</h2><table><tr><td class="m">Показатель</td><td class="m">Значение</td><td class="m">Интервал из бланка</td><td class="m">Предыдущее</td></tr>${labRows}</table>
+<p class="sub">${LAB_DISCLAIMER}</p>
 <div class="note">Отчёт сформирован автоматически по данным, которые вы внесли. Это не медицинское заключение и не заменяет консультацию врача.</div>
 </body></html>`
 

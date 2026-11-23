@@ -6,10 +6,10 @@ import { useId, useState } from 'react'
 export type YuviMood = 'great' | 'good' | 'neutral' | 'anxious' | 'bad'
 
 export const YUVI_MOODS: Record<YuviMood, { label: string; caption: string; c: [string, string, string]; text: string }> = {
-  great: { label: 'Отлично', caption: 'Данные в балансе', c: ['#f4f5ff', '#c9cdfb', '#93a0f1'], text: '#5b6cf0' },
-  good: { label: 'Хорошо', caption: 'Небольшие изменения', c: ['#f0fff4', '#b9efc8', '#74d494'], text: '#2f9e63' },
-  neutral: { label: 'Нейтрально', caption: 'Стоит обратить внимание', c: ['#fff8ec', '#ffdcaa', '#ffb35f'], text: '#d1801c' },
-  anxious: { label: 'Тревожно', caption: 'Есть отклонения', c: ['#fff1f3', '#ffc3cc', '#ff8597'], text: '#e0546b' },
+  great: { label: 'Отлично', caption: 'Отличное настроение', c: ['#f4f5ff', '#c9cdfb', '#93a0f1'], text: '#5b6cf0' },
+  good: { label: 'Хорошо', caption: 'Хорошее настроение', c: ['#f0fff4', '#b9efc8', '#74d494'], text: '#2f9e63' },
+  neutral: { label: 'Нейтрально', caption: 'Ровное настроение', c: ['#fff8ec', '#ffdcaa', '#ffb35f'], text: '#d1801c' },
+  anxious: { label: 'Тревожно', caption: 'Неспокойно на душе', c: ['#fff1f3', '#ffc3cc', '#ff8597'], text: '#e0546b' },
   bad: { label: 'Плохо', caption: 'Нужна забота и поддержка', c: ['#dfe6ff', '#7d93df', '#3a50b3'], text: '#3c51b8' },
 }
 

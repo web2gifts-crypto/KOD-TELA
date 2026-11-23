@@ -1,11 +1,10 @@
-// Персональные рекомендации и уведомления из данных пользователя (цикл + анализы).
-// Правила — заготовка; на этапе ИИ сюда подключится генерация с бэкенда.
+// Советы и уведомления.
+// Только общие советы по образу жизни с учётом фазы цикла (питание, движение, сон, забота о себе).
+// Никаких советов по результатам анализов, лекарств, добавок и дозировок — это решает врач.
 
 import { PHASES, type Phase } from './cycle'
-import { evaluate, type LabEval } from './labs'
-import type { LabRecord } from '../store/app'
 
-export type RecCategory = 'food' | 'activity' | 'supplements' | 'sleep'
+export type RecCategory = 'food' | 'activity' | 'sleep' | 'selfcare'
 
 export interface Rec {
   id: string
@@ -16,68 +15,48 @@ export interface Rec {
 
 export const CATEGORY: Record<RecCategory, { name: string; emoji: string; tint: string }> = {
   food: { name: 'Питание', emoji: '🥗', tint: '#dff3e6' },
-  activity: { name: 'Активность', emoji: '🧘‍♀️', tint: '#e2eaff' },
-  supplements: { name: 'Добавки', emoji: '💊', tint: '#f9def2' },
+  activity: { name: 'Движение', emoji: '🧘‍♀️', tint: '#e2eaff' },
   sleep: { name: 'Сон', emoji: '😴', tint: '#fff0d6' },
-}
-
-/** Последнее значение каждого показателя по всем анализам */
-export function latestLabs(labs: LabRecord[]): LabEval[] {
-  const seen = new Map<string, LabEval>()
-  for (const rec of [...labs].sort((a, b) => (a.date < b.date ? 1 : -1))) {
-    for (const it of rec.items) {
-      if (seen.has(it.code)) continue
-      const ev = evaluate(it.code, it.value)
-      if (ev) seen.set(it.code, ev)
-    }
-  }
-  return [...seen.values()]
+  selfcare: { name: 'Забота о себе', emoji: '💜', tint: '#f3e8ff' },
 }
 
 const PHASE_RECS: Record<Phase, Omit<Rec, 'id'>[]> = {
   menstrual: [
-    { category: 'food', title: 'Восполняй железо', text: 'Говядина, печень, гречка, чечевица + витамин C для усвоения.' },
-    { category: 'activity', title: 'Мягкое движение', text: 'Прогулки, растяжка, йога — без рекордов.' },
-    { category: 'sleep', title: 'Сон 8–9 часов', text: 'Организму сейчас нужно больше восстановления.' },
+    { category: 'food', title: 'Тёплая и сытная еда', text: 'Супы, каши, тушёные овощи — в эти дни многим комфортнее тёплая пища.' },
+    { category: 'activity', title: 'Мягкое движение', text: 'Прогулка, растяжка или йога — двигайся так, как приятно, без рекордов.' },
+    { category: 'sleep', title: 'Больше отдыха', text: 'Если тянет поспать подольше — разреши себе. Ложись пораньше.' },
+    { category: 'selfcare', title: 'Тепло и тишина', text: 'Грелка, плед, спокойный вечер. Запланируй день помягче, если можешь.' },
   ],
   follicular: [
-    { category: 'food', title: 'Больше белка и зелени', text: 'Поддержи рост энергии: рыба, яйца, листовые овощи.' },
-    { category: 'activity', title: 'Силовые и интервалы', text: 'Лучшее время для прогресса в тренировках.' },
-    { category: 'sleep', title: 'Режим 7–8 часов', text: 'Ложись до 23:00 — энергия будет ровнее.' },
+    { category: 'food', title: 'Разнообразие на тарелке', text: 'Овощи, зелень, крупы, белок в каждом приёме пищи — хорошая база на каждый день.' },
+    { category: 'activity', title: 'Время для активности', text: 'Многие чувствуют прилив сил — подходящее время попробовать новую тренировку.' },
+    { category: 'sleep', title: 'Ровный режим', text: 'Ложиться и вставать в одно время — самый простой способ чувствовать себя бодрее.' },
+    { category: 'selfcare', title: 'Новые начинания', text: 'Энергии больше — хороший момент для планов, которые давно откладывала.' },
   ],
   ovulation: [
-    { category: 'food', title: 'Клетчатка и антиоксиданты', text: 'Ягоды, овощи, цельные злаки — помогают выводу эстрогена.' },
-    { category: 'activity', title: 'Пик формы', text: 'Можно интенсивнее: бег, HIIT, командный спорт.' },
-    { category: 'sleep', title: 'Не засиживайся', text: 'Высокая энергия может мешать уснуть — убери экран за час до сна.' },
+    { category: 'food', title: 'Больше воды', text: 'Держи бутылку воды под рукой — особенно в активные дни.' },
+    { category: 'activity', title: 'Пик энергии', text: 'Если чувствуешь силы — можно позаниматься интенсивнее. Слушай своё тело.' },
+    { category: 'sleep', title: 'Экран — за час до сна', text: 'Энергии много, и уснуть бывает сложнее. Отложи телефон заранее.' },
+    { category: 'selfcare', title: 'Время для общения', text: 'Встреча с друзьями или прогулка с близкими — отличная идея для этих дней.' },
   ],
   luteal: [
-    { category: 'food', title: 'Магний и сложные углеводы', text: 'Гречка, овсянка, орехи, тёмный шоколад — меньше тяги к сладкому.' },
-    { category: 'activity', title: 'Умеренная нагрузка', text: 'Пилатес, плавание, ходьба. Восстановление дольше.' },
-    { category: 'sleep', title: 'Прохладная спальня', text: 'Температура тела выше — проветривай перед сном.' },
+    { category: 'food', title: 'Регулярные приёмы пищи', text: 'Если тянет на сладкое — не пропускай обед и держи под рукой орехи или фрукты.' },
+    { category: 'activity', title: 'Спокойный темп', text: 'Пилатес, плавание, ходьба — то, после чего хорошо, а не тяжело.' },
+    { category: 'sleep', title: 'Прохладная спальня', text: 'Проветри комнату перед сном — многим так легче засыпать.' },
+    { category: 'selfcare', title: 'Бережность к себе', text: 'Перепады настроения во второй половине цикла бывают у многих. Будь к себе мягче.' },
   ],
 }
 
-const LAB_RECS: Record<string, Omit<Rec, 'id'>> = {
-  'ferritin:low': { category: 'supplements', title: 'Железо 30–60 мг/сут', text: 'Только после консультации врача. Принимай отдельно от кофе и молочного.' },
-  'hgb:low': { category: 'food', title: 'Увеличь железосодержащие продукты', text: 'Красное мясо 2–3 раза в неделю, печень, бобовые.' },
-  'vitd:low': { category: 'supplements', title: 'Витамин D', text: 'Дозировку подберёт врач — обычно 2000–4000 МЕ в день.' },
-  'b12:low': { category: 'supplements', title: 'Витамин B12', text: 'Обсуди с врачом форму и дозировку.' },
-  'vitd:ok': { category: 'supplements', title: 'Поддерживай витамин D', text: 'Профилактическая доза 1000–2000 МЕ в осенне-зимний период.' },
-  'glucose:high': { category: 'food', title: 'Меньше быстрых углеводов', text: 'Сладкое — после основного приёма пищи, а не на голодный желудок.' },
-  'tsh:high': { category: 'sleep', title: 'Береги энергию', text: 'При повышенном ТТГ быстрее устаёшь — не жертвуй сном.' },
-}
+const GENERAL_RECS: Omit<Rec, 'id'>[] = [
+  { category: 'food', title: 'Вода в течение дня', text: 'Стакан воды утром и бутылка под рукой — простая привычка на каждый день.' },
+  { category: 'activity', title: '30 минут движения', text: 'Прогулка, лестница вместо лифта, танцы — всё считается.' },
+  { category: 'sleep', title: '7–9 часов сна', text: 'Регулярный сон — основа хорошего самочувствия.' },
+  { category: 'selfcare', title: 'Отмечай самочувствие', text: 'Записи в дневнике помогут заметить, как цикл влияет на твоё состояние.' },
+]
 
-export function buildRecs(phase: Phase | null, labs: LabRecord[]): Rec[] {
-  const out: Rec[] = []
-  for (const ev of latestLabs(labs)) {
-    const r = LAB_RECS[`${ev.def.code}:${ev.direction}`]
-    if (r) out.push({ id: `lab-${ev.def.code}-${ev.direction}`, ...r })
-  }
-  if (phase) PHASE_RECS[phase].forEach((r, i) => out.push({ id: `ph-${phase}-${i}`, ...r }))
-  if (!out.some((r) => r.category === 'supplements')) {
-    out.push({ id: 'base-supp', category: 'supplements', title: 'Сначала анализы', text: 'Добавки подбираем по анализам — загрузи их, и я подскажу.' })
-  }
-  return out
+export function buildRecs(phase: Phase | null): Rec[] {
+  const list = phase ? PHASE_RECS[phase].map((r, i) => ({ id: `ph-${phase}-${i}`, ...r })) : []
+  return [...list, ...GENERAL_RECS.map((r, i) => ({ id: `gen-${i}`, ...r }))]
 }
 
 export interface AppNotification {
@@ -89,28 +68,8 @@ export interface AppNotification {
   to?: string
 }
 
-export function buildNotifications(opts: {
-  phase: Phase | null
-  cycleDay: number | null
-  periodInDays: number | null
-  labs: LabRecord[]
-}): AppNotification[] {
+export function buildNotifications(opts: { phase: Phase | null; cycleDay: number | null; periodInDays: number | null }): AppNotification[] {
   const list: AppNotification[] = []
-  const latest = opts.labs[0]
-  if (latest) {
-    const ts = new Date(latest.date).getTime() + 12 * 3600_000
-    for (const ev of latestLabs(opts.labs).filter((e) => e.status !== 'ok')) {
-      list.push({
-        id: `lab-${latest.id}-${ev.def.code}`,
-        icon: ev.status === 'bad' ? '🔴' : '🟡',
-        title: `${ev.def.name}: ${ev.direction === 'low' ? 'ниже' : 'выше'} нормы`,
-        text: `${ev.note} ${ev.advice}.`,
-        ts,
-        to: `/labs/${latest.id}`,
-      })
-    }
-    list.push({ id: `recs-${latest.id}`, icon: '✨', title: 'Новые рекомендации', text: 'Обновили советы по питанию на основе твоих анализов.', ts: ts - 1, to: '/recommendations' })
-  }
   if (opts.phase && opts.cycleDay) {
     list.push({
       id: `cycle-day-${opts.cycleDay}-${opts.phase}`,
@@ -126,7 +85,7 @@ export function buildNotifications(opts: {
       id: `period-soon-${opts.periodInDays}`,
       icon: '🌸',
       title: opts.periodInDays === 0 ? 'Сегодня ожидаются месячные' : `Месячные через ${opts.periodInDays} дн.`,
-      text: 'Возьми с собой всё необходимое и запланируй день помягче.',
+      text: 'Положи всё необходимое в сумку и запланируй день помягче.',
       ts: Date.now() - 3600_000,
       to: '/cycle',
     })

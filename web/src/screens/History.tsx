@@ -12,7 +12,7 @@ export function History() {
     <div>
       <PageHeader title="История диалогов" />
       <div className="space-y-3 px-4 pb-6">
-        {chats.length === 0 && <p className="py-16 text-center text-[14px] text-muted">Здесь появятся твои разговоры с AI-ассистентом</p>}
+        {chats.length === 0 && <p className="py-16 text-center text-[14px] text-muted">Здесь появятся твои разговоры с Юви</p>}
         {chats.map((c) => {
           const first = c.messages.find((m) => m.role === 'user')
           const verdicts = c.messages.filter((m) => m.verdict).map((m) => m.verdict!)
@@ -24,11 +24,14 @@ export function History() {
                 <span className="shrink-0 text-[11px] text-muted">{relativeTime(c.startedAt)}</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {verdicts.map((v, i) => (
-                  <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: VERDICT_STYLE[v.level].bg, color: VERDICT_STYLE[v.level].fg }}>
-                    {VERDICT_STYLE[v.level].label}
-                  </span>
-                ))}
+                {verdicts.map((v, i) => {
+                  const st = VERDICT_STYLE[v.level] ?? VERDICT_STYLE.info
+                  return (
+                    <span key={i} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: st.bg, color: st.fg }}>
+                      {st.label}
+                    </span>
+                  )
+                })}
                 <span className="text-[12px] text-muted">{c.messages.length} сообщ.</span>
               </div>
               {expanded && (

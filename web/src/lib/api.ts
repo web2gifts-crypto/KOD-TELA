@@ -6,6 +6,15 @@ const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\
 
 export const hasBackend = Boolean(API_URL)
 
+/** Запрос к API с подписью Telegram initData (бэкенд проверяет HMAC) */
+export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  if (!API_URL) return Promise.reject(new Error('no backend'))
+  return fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', Authorization: `tma ${getInitData()}`, ...init.headers },
+  })
+}
+
 /**
  * Отправить файл в чат с ботом. Бэкенд проверяет подпись initData и шлёт документ через Bot API (sendDocument).
  * Без бэкенда (или вне Telegram) — файл скачивается на устройство.

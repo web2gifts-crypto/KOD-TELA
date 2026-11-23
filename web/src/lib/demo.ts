@@ -48,8 +48,23 @@ export function demoData(profile: Profile): AppData {
   }
 
   const labs: LabRecord[] = [
-    { id: 'demo-2', date: addDays(today, -6), source: 'photo', items: [{ code: 'hgb', value: 115 }, { code: 'ferritin', value: 8 }, { code: 'vitd', value: 38 }, { code: 'tsh', value: 2.1 }] },
-    { id: 'demo-1', date: addDays(today, -80), source: 'manual', items: [{ code: 'hgb', value: 121 }, { code: 'ferritin', value: 14 }, { code: 'vitd', value: 22 }] },
+    {
+      id: 'demo-2', date: addDays(today, -6), source: 'photo', lab: 'Инвитро',
+      items: [
+        { code: 'hgb', value: 115, unit: 'г/л', refMin: 117, refMax: 155 },
+        { code: 'ferritin', value: 8, unit: 'мкг/л', refMin: 10, refMax: 120 },
+        { code: 'vitd', value: 38, unit: 'нг/мл', refMin: 30, refMax: 100 },
+        { code: 'tsh', value: 2.1, unit: 'мМЕ/л', refMin: 0.4, refMax: 4 },
+      ],
+    },
+    {
+      id: 'demo-1', date: addDays(today, -80), source: 'manual', lab: 'Гемотест',
+      items: [
+        { code: 'hgb', value: 121, unit: 'г/л', refMin: 117, refMax: 155 },
+        { code: 'ferritin', value: 14, unit: 'мкг/л', refMin: 10, refMax: 120 },
+        { code: 'vitd', value: 22, unit: 'нг/мл', refMin: 30, refMax: 100 },
+      ],
+    },
   ]
 
   // «с нами» ~3 месяца

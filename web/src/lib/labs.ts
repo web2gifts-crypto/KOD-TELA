@@ -1,122 +1,126 @@
-// Справочник показателей. Референсы — ориентировочные для взрослых женщин;
-// финальные значения и тексты согласует медицинский эксперт проекта.
+// Дневник анализов.
+// Приложение НЕ оценивает результаты: не пишет «норма / выше / ниже нормы» и не советует лечение.
+// Храним значения и референсный интервал из бланка лаборатории (его вносит сам человек),
+// показываем динамику и нейтральную справку о показателе. Тексты справки согласует врач проекта.
 
-export type LabStatus = 'ok' | 'warn' | 'bad'
+import type { ISODate } from './date'
+import type { LabRecord } from '../store/app'
 
-export interface LabDef {
+export interface LabInfo {
   code: string
   name: string
+  /** единица по умолчанию — человек может указать свою, как в бланке */
   unit: string
-  min: number
-  max: number
-  low: { note: string; advice: string }
-  high: { note: string; advice: string }
-  okAdvice: string
+  /** что это за показатель (без оценок и рекомендаций) */
+  about: string
 }
 
-export const LABS: LabDef[] = [
-  {
-    code: 'hgb',
-    name: 'Гемоглобин',
-    unit: 'г/л',
-    min: 120,
-    max: 160,
-    low: { note: 'Ниже нормы. Возможна анемия.', advice: 'Ешь больше красного мяса, печени, шпината и бобовых' },
-    high: { note: 'Выше нормы. Бывает при обезвоживании.', advice: 'Пей больше воды и пересдай через 2–3 недели' },
-    okAdvice: 'Отличный уровень — поддерживай разнообразное питание',
-  },
-  {
-    code: 'ferritin',
-    name: 'Ферритин',
-    unit: 'мкг/л',
-    min: 12,
-    max: 150,
-    low: { note: 'Низкий. Запасы железа истощены.', advice: 'Обратись к врачу для назначения препаратов железа' },
-    high: { note: 'Повышен. Бывает при воспалении.', advice: 'Покажи результат терапевту — нужен контекст' },
-    okAdvice: 'Запасы железа в порядке',
-  },
-  {
-    code: 'vitd',
-    name: 'Витамин D',
-    unit: 'нг/мл',
-    min: 30,
-    max: 100,
-    low: { note: 'Дефицит витамина D.', advice: 'Обсуди с врачом дозировку витамина D' },
-    high: { note: 'Выше нормы — возможна передозировка.', advice: 'Приостанови добавки и обратись к врачу' },
-    okAdvice: 'Продолжай принимать витамин D 1000–2000 МЕ',
-  },
-  {
-    code: 'tsh',
-    name: 'ТТГ',
-    unit: 'мМЕ/л',
-    min: 0.4,
-    max: 4,
-    low: { note: 'Снижен. Стоит проверить щитовидную железу.', advice: 'Сдай Т4 свободный и покажи эндокринологу' },
-    high: { note: 'Повышен. Возможен гипотиреоз.', advice: 'Сдай Т4 свободный и анти-ТПО, запишись к эндокринологу' },
-    okAdvice: 'Щитовидная железа работает стабильно',
-  },
-  {
-    code: 'b12',
-    name: 'Витамин B12',
-    unit: 'пг/мл',
-    min: 190,
-    max: 900,
-    low: { note: 'Низкий уровень B12.', advice: 'Добавь яйца, рыбу, мясо; обсуди добавку с врачом' },
-    high: { note: 'Выше нормы.', advice: 'Если принимаешь добавки — сделай паузу' },
-    okAdvice: 'B12 в норме',
-  },
-  {
-    code: 'glucose',
-    name: 'Глюкоза',
-    unit: 'ммоль/л',
-    min: 3.9,
-    max: 5.5,
-    low: { note: 'Низкий сахар.', advice: 'Не пропускай приёмы пищи, добавь сложные углеводы' },
-    high: { note: 'Повышена натощак.', advice: 'Пересдай натощак и сдай гликированный гемоглобин' },
-    okAdvice: 'Углеводный обмен в порядке',
-  },
-  {
-    code: 'iron',
-    name: 'Железо сывороточное',
-    unit: 'мкмоль/л',
-    min: 9,
-    max: 30,
-    low: { note: 'Ниже нормы.', advice: 'Смотри вместе с ферритином — добавь продукты с железом' },
-    high: { note: 'Выше нормы.', advice: 'Если принимаешь железо — покажи результат врачу' },
-    okAdvice: 'Железо в норме',
-  },
+export const LAB_INFO: LabInfo[] = [
+  { code: 'hgb', name: 'Гемоглобин', unit: 'г/л', about: 'Белок эритроцитов, который переносит кислород от лёгких к тканям.' },
+  { code: 'ferritin', name: 'Ферритин', unit: 'мкг/л', about: 'Белок, в котором организм хранит железо. По нему судят о запасах железа.' },
+  { code: 'iron', name: 'Железо сывороточное', unit: 'мкмоль/л', about: 'Количество железа, которое циркулирует в крови в момент забора.' },
+  { code: 'vitd', name: 'Витамин D (25-OH)', unit: 'нг/мл', about: 'Отражает запасы витамина D — из пищи, добавок и выработанного кожей на солнце.' },
+  { code: 'b12', name: 'Витамин B12', unit: 'пг/мл', about: 'Витамин, который участвует в образовании клеток крови и работе нервной системы.' },
+  { code: 'tsh', name: 'ТТГ', unit: 'мМЕ/л', about: 'Гормон гипофиза, который управляет работой щитовидной железы.' },
+  { code: 'ft4', name: 'Т4 свободный', unit: 'пмоль/л', about: 'Гормон щитовидной железы, который влияет на обмен веществ и энергию.' },
+  { code: 'glucose', name: 'Глюкоза', unit: 'ммоль/л', about: 'Уровень сахара в крови — основного источника энергии для клеток.' },
+  { code: 'prolactin', name: 'Пролактин', unit: 'мЕд/л', about: 'Гормон гипофиза, который участвует в регуляции менструального цикла.' },
+  { code: 'estradiol', name: 'Эстрадиол', unit: 'пмоль/л', about: 'Основной женский половой гормон; его уровень меняется в течение цикла.' },
+  { code: 'progesterone', name: 'Прогестерон', unit: 'нмоль/л', about: 'Гормон второй половины цикла; его уровень зависит от дня цикла.' },
+  { code: 'testosterone', name: 'Тестостерон', unit: 'нмоль/л', about: 'Гормон, который в небольшом количестве вырабатывается и у женщин.' },
 ]
 
-export const LAB_BY_CODE = Object.fromEntries(LABS.map((l) => [l.code, l])) as Record<string, LabDef>
+export const LAB_BY_CODE = Object.fromEntries(LAB_INFO.map((l) => [l.code, l])) as Record<string, LabInfo>
 
-export interface LabEval {
-  def: LabDef
+/** Код для показателя, которого нет в справочнике (вводится вручную) */
+export const CUSTOM = 'custom'
+
+export interface LabItem {
+  code: string
+  /** название — для своих показателей (code = custom) */
+  name?: string
   value: number
-  status: LabStatus
-  direction: 'low' | 'high' | 'ok'
-  note: string
-  advice: string
-  /** положение значения на шкале 0..1 для прогресс-бара */
-  position: number
+  unit: string
+  /** референсный интервал из бланка лаборатории (если указан) */
+  refMin?: number | null
+  refMax?: number | null
 }
 
-/** Отклонение до 15% от границы — «обрати внимание», больше — «требует внимания». */
-export function evaluate(code: string, value: number): LabEval | null {
-  const def = LAB_BY_CODE[code]
-  if (!def) return null
-  const span = def.max - def.min
-  const position = Math.min(1, Math.max(0.03, (value - (def.min - span * 0.25)) / (span * 1.5)))
-  if (value < def.min || value > def.max) {
-    const direction = value < def.min ? 'low' : 'high'
-    const bound = direction === 'low' ? def.min : def.max
-    const deviation = Math.abs(value - bound) / bound
-    return { def, value, direction, status: deviation <= 0.15 ? 'warn' : 'bad', ...def[direction], position }
+export const itemName = (it: Pick<LabItem, 'code' | 'name'>) => (it.code === CUSTOM ? it.name || 'Показатель' : LAB_BY_CODE[it.code]?.name ?? it.name ?? it.code)
+
+/** ключ для группировки одинаковых показателей (свои — по названию) */
+export const itemKey = (it: Pick<LabItem, 'code' | 'name'>) => (it.code === CUSTOM ? `custom:${(it.name ?? '').trim().toLowerCase()}` : it.code)
+
+export function formatRef(it: Pick<LabItem, 'refMin' | 'refMax'>): string | null {
+  const lo = it.refMin ?? null
+  const hi = it.refMax ?? null
+  if (lo === null && hi === null) return null
+  if (lo !== null && hi !== null) return `${lo}–${hi}`
+  return lo !== null ? `от ${lo}` : `до ${hi}`
+}
+
+export interface LabValue {
+  key: string
+  item: LabItem
+  date: ISODate
+  recordId: string
+  /** предыдущее значение того же показателя */
+  prev: { value: number; date: ISODate } | null
+}
+
+/** Последнее значение каждого показателя по всем анализам (+ предыдущее для динамики) */
+export function latestValues(labs: LabRecord[]): LabValue[] {
+  const sorted = [...labs].sort((a, b) => (a.date < b.date ? 1 : -1))
+  const out = new Map<string, LabValue>()
+  for (const rec of sorted) {
+    for (const it of rec.items) {
+      const key = itemKey(it)
+      const cur = out.get(key)
+      if (!cur) out.set(key, { key, item: it, date: rec.date, recordId: rec.id, prev: null })
+      else if (!cur.prev && rec.date < cur.date) cur.prev = { value: it.value, date: rec.date }
+    }
   }
-  return { def, value, direction: 'ok', status: 'ok', note: 'В норме. Хороший результат!', advice: def.okAdvice, position }
+  return [...out.values()]
 }
 
-export const STATUS_COLOR: Record<LabStatus, string> = {
-  ok: 'var(--color-ok)',
-  warn: 'var(--color-warn)',
-  bad: 'var(--color-bad)',
+/** Все значения показателя по времени (для графика) */
+export function seriesFor(labs: LabRecord[], key: string): { date: ISODate; value: number; item: LabItem }[] {
+  return labs
+    .flatMap((r) => r.items.filter((i) => itemKey(i) === key).map((item) => ({ date: r.date, value: item.value, item })))
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
+}
+
+export const LAB_DISCLAIMER = 'Приложение не оценивает результаты анализов. Если есть вопросы по результату — обсудите его с врачом.'
+
+/* ---------- форма внесения ---------- */
+
+export interface LabRow {
+  key: string
+  code: string
+  name: string
+  value: string
+  unit: string
+  refMin: string
+  refMax: string
+}
+
+/** «12,5» → 12.5; пусто или не число (в т.ч. «0x10», «1e3») → null */
+export function parseNum(s: string): number | null {
+  const t = s.trim().replace(',', '.')
+  if (!/^-?\d+(\.\d+)?$/.test(t)) return null
+  return Number(t)
+}
+
+/** Ошибка в строке формы или null. Пустая строка (не выбран показатель или нет значения) — не ошибка. */
+export function rowError(r: LabRow): string | null {
+  if (!r.code) return null
+  if (r.code === CUSTOM && !r.name.trim()) return 'Укажи название показателя'
+  const v = parseNum(r.value)
+  if (v === null) return r.value.trim() ? 'Значение должно быть числом' : null
+  if (v < 0) return 'Значение не может быть отрицательным'
+  const lo = parseNum(r.refMin)
+  const hi = parseNum(r.refMax)
+  if ((r.refMin.trim() && lo === null) || (r.refMax.trim() && hi === null)) return 'Интервал — только числа'
+  if (lo !== null && hi !== null && lo > hi) return 'Нижняя граница больше верхней'
+  return null
 }

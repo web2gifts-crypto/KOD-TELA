@@ -41,6 +41,7 @@ const routes: RouteObject[] = [
       { path: '/labs', element: <Labs /> },
       { path: '/labs/new', element: <LabUpload /> },
       { path: '/labs/:id', element: <LabResult /> },
+      { path: '/labs/:id/edit', element: <LabUpload /> },
       { path: '/cycle', element: <Cycle /> },
       { path: '/recommendations', element: <Recommendations /> },
       { path: '/profile', element: <Profile /> },

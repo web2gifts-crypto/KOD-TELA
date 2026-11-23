@@ -8,11 +8,11 @@ import { Card, PageHeader } from '../ui/kit'
 
 export function Notifications() {
   const nav = useNavigate()
-  const { labs, readNotifications, markRead } = useApp()
+  const { readNotifications, markRead } = useApp()
   const { info, next } = useCycleToday()
   const list = useMemo(
-    () => buildNotifications({ phase: info?.phase ?? null, cycleDay: info?.day ?? null, periodInDays: next?.inDays ?? null, labs }),
-    [info, next, labs],
+    () => buildNotifications({ phase: info?.phase ?? null, cycleDay: info?.day ?? null, periodInDays: next?.inDays ?? null }),
+    [info, next],
   )
   // непрочитанные запоминаем на момент открытия, чтобы точки не пропали сразу
   const unread = useMemo(() => new Set(list.filter((n) => !readNotifications.includes(n.id)).map((n) => n.id)), [list])

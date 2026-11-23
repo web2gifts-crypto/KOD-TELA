@@ -2,9 +2,6 @@
 
 import { phaseForDay, type CycleSettings, type Phase } from './cycle'
 import { addDays, diffDays, type ISODate } from './date'
-import { latestLabs } from './insights'
-import type { LabEval } from './labs'
-import type { LabRecord } from '../store/app'
 
 /* ---------- цикл ---------- */
 
@@ -119,19 +116,4 @@ export function symptomStats(symptoms: Record<ISODate, string[]>, starts: ISODat
       return { name, count: e.count, phase }
     })
     .sort((a, b) => b.count - a.count)
-}
-
-/* ---------- анализы ---------- */
-
-export interface LabTrend {
-  ev: LabEval
-  prev: number | null
-}
-
-export function labTrends(labs: LabRecord[]): LabTrend[] {
-  const sorted = [...labs].sort((a, b) => (a.date < b.date ? 1 : -1))
-  return latestLabs(labs).map((ev) => {
-    const vals = sorted.flatMap((l) => l.items.filter((i) => i.code === ev.def.code).map((i) => i.value))
-    return { ev, prev: vals[1] ?? null }
-  })
 }

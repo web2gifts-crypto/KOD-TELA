@@ -50,9 +50,9 @@ function loadPos(): { side: Side; ratio: number } {
 export function FloatingYuvi() {
   const nav = useNavigate()
   const { pathname } = useLocation()
-  const { moods, labs, introSeen } = useApp()
+  const { moods, introSeen } = useApp()
   const { today, info } = useCycleToday()
-  const state = yuviState({ moods, labs, today, info })
+  const state = yuviState({ moods, today, info })
 
   const [saved, setSaved] = useState(loadPos)
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null)

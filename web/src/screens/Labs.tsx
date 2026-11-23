@@ -1,99 +1,74 @@
 import { useNavigate } from 'react-router'
-import { ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, FlaskConical, Plus } from 'lucide-react'
 import { useApp } from '../store/app'
-import { evaluate, LAB_BY_CODE, STATUS_COLOR } from '../lib/labs'
-import { formatDay, plural } from '../lib/date'
-import { Button, Card, SectionTitle } from '../ui/kit'
+import { itemName, latestValues, LAB_DISCLAIMER, seriesFor } from '../lib/labs'
+import { formatDay } from '../lib/date'
+import { Button, Card, GlassIcon, SectionTitle } from '../ui/kit'
+import { Sparkline } from '../ui/Sparkline'
+
+// Дневник анализов: мои показатели (последние значения и динамика) и история записей.
 
 export function Labs() {
   const nav = useNavigate()
   const labs = useApp((s) => s.labs)
-
-  // динамика: показатели, сданные 2+ раз
-  const series = new Map<string, { date: string; value: number }[]>()
-  for (const l of [...labs].sort((a, b) => (a.date < b.date ? -1 : 1)))
-    for (const it of l.items) series.set(it.code, [...(series.get(it.code) ?? []), { date: l.date, value: it.value }])
-  const trends = [...series.entries()].filter(([, s]) => s.length > 1)
+  const values = latestValues(labs)
+  const sorted = [...labs].sort((a, b) => (a.date < b.date ? 1 : -1))
 
   return (
     <div className="pt-safe px-4">
-      <div className="flex h-14 items-center justify-between">
-        <h1 className="text-[22px] font-bold">Анализы</h1>
-        <button aria-label="Добавить анализ" onClick={() => nav('/labs/new')} className="grid size-10 place-items-center rounded-full bg-brand text-white shadow-btn">
+      <header className="flex items-center justify-between pb-1 pt-4">
+        <h1 className="text-[26px] font-bold">Анализы</h1>
+        <button aria-label="Добавить анализ" onClick={() => nav('/labs/new')} className="grid size-11 place-items-center rounded-full bg-brand text-white shadow-btn">
           <Plus size={20} />
         </button>
-      </div>
+      </header>
+      <p className="text-[13px] text-muted">Дневник твоих результатов и их динамика</p>
 
       {labs.length === 0 ? (
-        <div className="mt-10 text-center">
-          <div className="text-[48px]">🔬</div>
-          <h2 className="mt-3 text-[20px] font-bold">Здесь будут твои анализы</h2>
-          <p className="mx-auto mt-2 max-w-[18rem] text-[14px] text-muted">Загрузи первый — объясню каждый показатель простыми словами и покажу динамику</p>
+        <div className="mt-10 flex flex-col items-center text-center">
+          <GlassIcon icon={FlaskConical} tone="violet" size={64} />
+          <h2 className="mt-4 text-[20px] font-bold">Здесь будут твои анализы</h2>
+          <p className="mx-auto mt-2 max-w-[18rem] text-[14px] text-muted">Сохраняй результаты из бланков — будет видно, как меняются показатели со временем.</p>
           <Button className="mt-6" onClick={() => nav('/labs/new')}>
-            Загрузить анализ
+            Добавить анализ
           </Button>
         </div>
       ) : (
         <>
-          {trends.length > 0 && (
-            <>
-              <SectionTitle>Динамика</SectionTitle>
-              <div className="grid grid-cols-2 gap-3">
-                {trends.map(([code, s]) => (
-                  <Card key={code} className="p-3!">
-                    <div className="text-[13px] font-semibold">{LAB_BY_CODE[code]?.name}</div>
-                    <Sparkline points={s.map((p) => p.value)} min={LAB_BY_CODE[code]?.min} max={LAB_BY_CODE[code]?.max} />
-                    <div className="text-[11px] text-muted">
-                      {s[0].value} → <b className="text-ink">{s[s.length - 1].value}</b> {LAB_BY_CODE[code]?.unit}
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </>
-          )}
-
-          <SectionTitle>История</SectionTitle>
-          <div className="space-y-2.5">
-            {labs.map((l) => {
-              const evals = l.items.map((i) => evaluate(i.code, i.value)).filter((e) => e !== null)
-              const bad = evals.filter((e) => e.status !== 'ok').length
+          <SectionTitle>Мои показатели</SectionTitle>
+          <div className="grid grid-cols-2 gap-3">
+            {values.map((v) => {
+              const s = seriesFor(labs, v.key)
               return (
-                <Card key={l.id} onClick={() => nav(`/labs/${l.id}`)} className="flex items-center gap-3">
-                  <div className="grid size-11 place-items-center rounded-2xl bg-brand-soft text-[20px]">{l.source === 'photo' ? '📷' : '📝'}</div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[15px] font-semibold">{formatDay(l.date, true)}</div>
-                    <div className="truncate text-[12px] text-muted">{evals.map((e) => e.def.name).join(', ')}</div>
-                    <div className="mt-1 flex items-center gap-1.5">
-                      {evals.map((e) => (
-                        <span key={e.def.code} className="size-2 rounded-full" style={{ background: STATUS_COLOR[e.status] }} />
-                      ))}
-                      <span className={`ml-1 text-[12px] font-semibold ${bad ? 'text-bad' : 'text-ok'}`}>
-                        {bad ? `${bad} ${plural(bad, 'отклонение', 'отклонения', 'отклонений')}` : 'всё в норме'}
-                      </span>
-                    </div>
+                <Card key={v.key} onClick={() => nav(`/labs/${v.recordId}`)} className="p-3.5!">
+                  <div className="truncate text-[13px] font-semibold">{itemName(v.item)}</div>
+                  <div className="mt-1 flex items-baseline gap-1">
+                    <span className="text-[22px] font-bold">{v.item.value}</span>
+                    <span className="text-[11px] text-muted">{v.item.unit}</span>
                   </div>
-                  <ChevronRight size={18} className="text-muted" />
+                  {s.length >= 2 ? <Sparkline points={s.map((p) => p.value)} height={32} className="my-1" /> : <div className="h-[36px]" />}
+                  <div className="text-[11px] text-muted">{formatDay(v.date)}</div>
                 </Card>
               )
             })}
           </div>
+
+          <SectionTitle>История</SectionTitle>
+          <div className="space-y-2.5">
+            {sorted.map((l) => (
+              <Card key={l.id} onClick={() => nav(`/labs/${l.id}`)} className="flex items-center gap-3">
+                <GlassIcon icon={FlaskConical} tone="violet" size={40} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[15px] font-semibold">{formatDay(l.date, true)}</div>
+                  <div className="truncate text-[12px] text-muted">{[l.lab, l.items.map(itemName).join(', ')].filter(Boolean).join(' · ')}</div>
+                </div>
+                <ChevronRight size={18} className="text-muted" />
+              </Card>
+            ))}
+          </div>
+          <p className="mt-5 px-2 text-center text-[11px] leading-snug text-muted">{LAB_DISCLAIMER}</p>
         </>
       )}
     </div>
-  )
-}
-
-function Sparkline({ points, min, max }: { points: number[]; min?: number; max?: number }) {
-  const w = 120
-  const h = 40
-  const lo = Math.min(...points, min ?? Infinity)
-  const hi = Math.max(...points, max ?? -Infinity)
-  const y = (v: number) => h - 4 - ((v - lo) / (hi - lo || 1)) * (h - 8)
-  const x = (i: number) => (i / (points.length - 1)) * (w - 8) + 4
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="my-1.5 h-10 w-full" preserveAspectRatio="none">
-      {min !== undefined && max !== undefined && <rect x="0" y={y(max)} width={w} height={Math.max(1, y(min) - y(max))} fill="var(--color-ok)" opacity=".1" />}
-      <polyline points={points.map((v, i) => `${x(i)},${y(v)}`).join(' ')} fill="none" stroke="var(--color-accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-    </svg>
   )
 }

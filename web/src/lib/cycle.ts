@@ -16,7 +16,7 @@ export const PHASES: Record<Phase, { name: string; gen: string; short: string; c
     short: 'Менструальная',
     color: 'var(--color-ph-menstrual)',
     text: '#a2427f',
-    hint: 'Время замедлиться. Больше сна, тепла и продуктов с железом.',
+    hint: 'Время замедлиться: больше отдыха, тепла и бережности к себе.',
   },
   follicular: {
     name: 'Фолликулярная фаза',
@@ -40,7 +40,7 @@ export const PHASES: Record<Phase, { name: string; gen: string; short: string; c
     short: 'Лютеиновая',
     color: 'var(--color-ph-luteal)',
     text: '#3e5ea8',
-    hint: 'Энергия снижается, может тянуть на сладкое. Магний, сон и мягкие тренировки.',
+    hint: 'Энергии может быть меньше, может тянуть на сладкое. Сон и спокойные тренировки — хорошая идея.',
   },
 }
 
@@ -157,6 +157,8 @@ export interface CycleModel {
   fromHistory: boolean
   /** ± дней к прогнозу начала месячных (разброс прошлых циклов) */
   spread: number
+  /** ожидаемые месячные не начались — задержка */
+  late: boolean
   status: (date: ISODate) => DayStatus | null
   nextPeriod: { date: ISODate; inDays: number } | null
   nextOvulation: { date: ISODate; inDays: number } | null
@@ -179,6 +181,10 @@ export function buildCycleModel(periodDays: Record<ISODate, number>, settings: C
   const periodLength = runLens.length ? avg(runLens.slice(-6)) : settings.periodLength
   const spread = recent.length >= 2 ? Math.min(5, Math.ceil((Math.max(...recent) - Math.min(...recent)) / 2)) : 0
   const lastStart = starts[starts.length - 1] ?? null
+  // ожидаемое начало следующих месячных; при задержке прогноз сдвигается на завтра
+  const expected = lastStart ? addDays(lastStart, cycleLength) : null
+  const late = !!expected && expected <= todayISO
+  const anchor = late ? addDays(todayISO, 1) : expected
 
   const status = (date: ISODate): DayStatus | null => {
     const flow = periodDays[date] ?? null
@@ -187,30 +193,32 @@ export function buildCycleModel(periodDays: Record<ISODate, number>, settings: C
     if (idx < 0) return null
     const start = starts[idx]
     const nextStart = starts[idx + 1]
-    const off = diffDays(date, start)
     const predicted = date > todayISO
     let day: number
     let cycLen: number
     let possibleStart = false
     if (nextStart) {
       // завершённый цикл — его реальная длина
-      day = off + 1
+      day = diffDays(date, start) + 1
       cycLen = diffDays(nextStart, start)
-    } else if (off < cycleLength || !predicted) {
-      // текущий цикл (в том числе задержка)
-      day = off + 1
-      cycLen = Math.max(cycleLength, day)
+    } else if (anchor && date >= anchor) {
+      // будущие циклы — по средней длине от ожидаемого начала
+      day = (diffDays(date, anchor) % cycleLength) + 1
+      cycLen = cycleLength
     } else {
-      // будущие циклы — по средней длине
-      day = (off % cycleLength) + 1
+      // текущий цикл; дни задержки (day > cycleLength) без разметки
+      day = diffDays(date, start) + 1
       cycLen = cycleLength
     }
-    if (predicted && spread > 0) {
+    if (predicted && spread > 0 && anchor) {
+      const off = diffDays(date, anchor)
       const k = Math.round(off / cycleLength)
-      if (k >= 1 && Math.abs(off - k * cycleLength) <= spread) possibleStart = true
+      if (k >= 0 && Math.abs(off - k * cycleLength) <= spread) possibleStart = true
     }
+    const delayDay = !nextStart && day > cycLen
     let mark: DayMark
     if (flow !== null) mark = 'period'
+    else if (delayDay) mark = null
     else if (day <= periodLength) mark = predicted ? 'period' : null
     else mark = markForDay(day, { cycleLength: cycLen, periodLength })
     return { day, phase: phaseForDay(day, { cycleLength: cycLen, periodLength }), mark, predicted, flow, possibleStart }
@@ -218,13 +226,13 @@ export function buildCycleModel(periodDays: Record<ISODate, number>, settings: C
 
   let nextPeriod: CycleModel['nextPeriod'] = null
   let nextOvulation: CycleModel['nextOvulation'] = null
-  if (lastStart) {
-    const np = addDays(lastStart, cycleLength)
-    nextPeriod = { date: np, inDays: diffDays(np, todayISO) }
+  if (lastStart && expected && anchor) {
+    // при задержке inDays < 0 — экран показывает «задержка N дней»
+    nextPeriod = { date: expected, inDays: diffDays(expected, todayISO) }
     let ov = addDays(lastStart, cycleLength - 15)
-    if (ov < todayISO) ov = addDays(ov, cycleLength)
+    if (ov < todayISO) ov = addDays(anchor, cycleLength - 15)
     nextOvulation = { date: ov, inDays: diffDays(ov, todayISO) }
   }
 
-  return { starts, lastStart, cycleLength, periodLength, fromHistory: recent.length > 0, spread, status, nextPeriod, nextOvulation }
+  return { starts, lastStart, cycleLength, periodLength, fromHistory: recent.length > 0, spread, late, status, nextPeriod, nextOvulation }
 }

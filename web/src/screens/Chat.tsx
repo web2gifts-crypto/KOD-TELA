@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Camera, ChevronLeft, SendHorizontal } from 'lucide-react'
 import { uid, useApp, type ChatMessage, type ChatSession, type Verdict } from '../store/app'
-import { buildVerdict, emergencyVerdict, isEmergency, QUESTIONS, VERDICT_STYLE, type Answers } from '../lib/triage'
+import { emergencyVerdict, isEmergency, QUESTIONS, VERDICT_STYLE, type Answers } from '../lib/triage'
+import { getAssistant } from '../lib/assistant'
 import { PHASES } from '../lib/cycle'
 import { useCycleToday } from '../lib/useCycleToday'
 import { haptic, inTelegram } from '../lib/telegram'
@@ -10,7 +11,8 @@ import { Yuvi } from '../ui/Yuvi'
 import { Disclaimer, IconButton } from '../ui/kit'
 
 const STARTERS = ['Болит живот', 'Нерегулярный цикл', 'Усталость', 'Высыпания на коже']
-const GREETING = 'Привет! Я Юви 💜 Задай мне любой вопрос о своём здоровье или опиши симптом — объясню всё просто.'
+const GREETING =
+  'Привет! Я Юви 💜 Опиши, что беспокоит — расскажу общую информацию и подскажу, когда стоит обратиться к врачу. Диагнозы я не ставлю.'
 
 type Stage = { kind: 'symptom' } | { kind: 'question'; index: number; symptom: string; answers: Answers } | { kind: 'done' }
 
@@ -66,8 +68,26 @@ export function Chat() {
         reply(msg('assistant', QUESTIONS[nextIndex].text))
       } else {
         setStage({ kind: 'done' })
-        const v = buildVerdict(stage.symptom, answers, info?.phase ?? null)
-        reply(msg('assistant', 'Спасибо, картина ясна. Вот что я думаю:', v), () => (v.level === 'norm' ? haptic.success() : haptic.warn()))
+        setTyping(true)
+        const started = Date.now()
+        getAssistant()
+          .then((a) =>
+            a.reply({
+              symptom: stage.symptom,
+              answers,
+              phase: info?.phase ?? null,
+              cycleDay: info?.day ?? null,
+              history: session.messages.slice(-12).map(({ role, text }) => ({ role, text })),
+            }),
+          )
+          .then((r) => {
+            // небольшая пауза, чтобы «печатает…» не мигал
+            window.setTimeout(() => {
+              setTyping(false)
+              push(msg('assistant', r.text, r.verdict))
+              if (r.verdict?.level === 'doctor') haptic.warn()
+            }, Math.max(0, 750 - (Date.now() - started)))
+          })
       }
       return
     }
@@ -110,7 +130,7 @@ export function Chat() {
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {session.messages.map((m) => (
-          <Bubble key={m.id} m={m} onLab={() => nav('/labs/new')} />
+          <Bubble key={m.id} m={m} />
         ))}
         {typing && (
           <div className="glass ml-9 flex w-fit gap-1 rounded-3xl rounded-bl-md px-4 py-3.5 shadow-card">
@@ -137,7 +157,7 @@ export function Chat() {
             send(input)
           }}
         >
-          <button type="button" aria-label="Загрузить анализ" onClick={() => nav('/labs/new')} className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-soft text-accent">
+          <button type="button" aria-label="Добавить анализ в дневник" onClick={() => nav('/labs/new')} className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-soft text-accent">
             <Camera size={20} />
           </button>
           <input
@@ -156,7 +176,7 @@ export function Chat() {
   )
 }
 
-function Bubble({ m, onLab }: { m: ChatMessage; onLab: () => void }) {
+function Bubble({ m }: { m: ChatMessage }) {
   const time = new Date(m.ts).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })
   if (m.role === 'user') {
     return (
@@ -172,7 +192,7 @@ function Bubble({ m, onLab }: { m: ChatMessage; onLab: () => void }) {
       <div className="min-w-0">
       <div className="glass whitespace-pre-line rounded-3xl rounded-bl-md px-4 py-3 text-[15px] leading-snug shadow-card">
         {m.text}
-        {m.verdict && <VerdictCard v={m.verdict} onLab={onLab} />}
+        {m.verdict && <VerdictCard v={m.verdict} />}
       </div>
       <div className="mt-1 text-[11px] text-muted">{time}</div>
       </div>
@@ -180,8 +200,8 @@ function Bubble({ m, onLab }: { m: ChatMessage; onLab: () => void }) {
   )
 }
 
-function VerdictCard({ v, onLab }: { v: Verdict; onLab: () => void }) {
-  const st = VERDICT_STYLE[v.level]
+function VerdictCard({ v }: { v: Verdict }) {
+  const st = VERDICT_STYLE[v.level] ?? VERDICT_STYLE.info
   return (
     <div className="mt-3 border-t border-line pt-3">
       <span className="inline-block rounded-full px-3 py-1 text-[12px] font-bold" style={{ background: st.bg, color: st.fg }}>
@@ -189,21 +209,30 @@ function VerdictCard({ v, onLab }: { v: Verdict; onLab: () => void }) {
       </span>
       <div className="mt-2 font-semibold">{v.title}</div>
       <p className="mt-1 text-[14px] text-ink/80">{v.explanation}</p>
-      <div className="mt-3 text-[12px] font-semibold uppercase tracking-wider text-muted">План действий</div>
-      <ol className="mt-1.5 space-y-1.5">
-        {v.plan.map((p, i) => (
+      <Steps title={v.level === 'emergency' ? 'Что сделать сейчас' : 'Что можно сделать'} items={v.plan} />
+      {!!v.whenDoctor?.length && <Steps title="Когда стоит обратиться к врачу" items={v.whenDoctor} bullet />}
+      {v.level === 'emergency' && (
+        <a href="tel:112" className="mt-3 flex h-11 items-center justify-center rounded-full bg-[#e2685a] text-[15px] font-bold text-white">
+          Позвонить 112
+        </a>
+      )}
+      <p className="mt-3 rounded-xl bg-bg px-3 py-2 text-[12px] text-muted">⚕️ Юви не ставит диагнозы и не оценивает, норма это или нет. Решение — за врачом.</p>
+    </div>
+  )
+}
+
+function Steps({ title, items, bullet }: { title: string; items: string[]; bullet?: boolean }) {
+  return (
+    <>
+      <div className="mt-3 text-[12px] font-semibold uppercase tracking-wider text-muted">{title}</div>
+      <ul className="mt-1.5 space-y-1.5">
+        {items.map((p, i) => (
           <li key={i} className="flex gap-2 text-[14px]">
-            <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[11px] font-bold text-accent">{i + 1}</span>
+            <span className="grid size-5 shrink-0 place-items-center rounded-full bg-brand-soft text-[11px] font-bold text-accent">{bullet ? '•' : i + 1}</span>
             {p}
           </li>
         ))}
-      </ol>
-      {/анализ|сдай/i.test(v.plan.join(' ')) && v.level !== 'emergency' && (
-        <button onClick={onLab} className="mt-3 text-[13px] font-semibold text-accent">
-          Загрузить анализ →
-        </button>
-      )}
-      <p className="mt-3 rounded-xl bg-bg px-3 py-2 text-[12px] text-muted">⚕️ Это не диагноз и не заменяет консультацию врача.</p>
-    </div>
+      </ul>
+    </>
   )
 }

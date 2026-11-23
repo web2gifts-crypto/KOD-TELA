@@ -8,8 +8,8 @@ import { LogoMark } from '../ui/Logo'
 import { MOOD_SCALE, Yuvi, YUVI_MOODS } from '../ui/Yuvi'
 import { PHASES } from '../lib/cycle'
 import { diffDays, plural, toISO, today as todayISO } from '../lib/date'
-import { STATUS_COLOR } from '../lib/labs'
-import { cycleStats, labTrends, moodStats, moodStrip, symptomStats } from '../lib/stats'
+import { itemName, latestValues, LAB_DISCLAIMER, type LabValue } from '../lib/labs'
+import { cycleStats, moodStats, moodStrip, symptomStats } from '../lib/stats'
 import { buildReport } from '../lib/report'
 import { hasBackend, sendFileToBot } from '../lib/api'
 import { haptic, inTelegram } from '../lib/telegram'
@@ -27,7 +27,7 @@ export function BodyCode() {
   const cs = useMemo(() => cycleStats(data.periodStarts), [data.periodStarts])
   const ms = useMemo(() => moodStats(data.moods, data.moodNotes), [data.moods, data.moodNotes])
   const ss = useMemo(() => symptomStats(data.symptoms, data.periodStarts, data.cycle), [data.symptoms, data.periodStarts, data.cycle])
-  const lt = useMemo(() => labTrends(data.labs), [data.labs])
+  const lt = useMemo(() => latestValues(data.labs), [data.labs])
 
   return (
     <div className="pt-safe px-4">
@@ -255,9 +255,8 @@ function SymptomSection({ ss }: { ss: ReturnType<typeof symptomStats> }) {
 
 /* ---------- анализы ---------- */
 
-function LabSection({ lt }: { lt: ReturnType<typeof labTrends> }) {
+function LabSection({ lt }: { lt: LabValue[] }) {
   const nav = useNavigate()
-  const bad = lt.filter((t) => t.ev.status !== 'ok').length
   return (
     <Section
       icon={FlaskConical}
@@ -271,26 +270,23 @@ function LabSection({ lt }: { lt: ReturnType<typeof labTrends> }) {
     >
       {lt.length ? (
         <>
-          <p className="mb-2 text-[13px] text-muted">{bad ? `${bad} ${plural(bad, 'показатель', 'показателя', 'показателей')} вне нормы` : 'Все последние показатели в норме'}</p>
+          <p className="mb-2 text-[13px] text-muted">Последние значения и предыдущие для сравнения</p>
           <ul className="divide-y divide-line">
-            {lt.map(({ ev, prev }) => (
-              <li key={ev.def.code} className="flex items-center justify-between py-2.5">
-                <span className="text-[14px]">{ev.def.name}</span>
+            {lt.map(({ key, item, prev }) => (
+              <li key={key} className="flex items-center justify-between py-2.5">
+                <span className="text-[14px]">{itemName(item)}</span>
                 <span className="flex items-center gap-2 text-[14px]">
-                  {prev !== null && (
-                    <span className="text-[12px] text-muted">
-                      {prev} →
-                    </span>
-                  )}
-                  <b style={{ color: STATUS_COLOR[ev.status] }}>{ev.value}</b>
-                  <span className="text-[11px] text-muted">{ev.def.unit}</span>
+                  {prev && <span className="text-[12px] text-muted">{prev.value} →</span>}
+                  <b>{item.value}</b>
+                  <span className="text-[11px] text-muted">{item.unit}</span>
                 </span>
               </li>
             ))}
           </ul>
+          <p className="mt-2 text-[11px] leading-snug text-muted">{LAB_DISCLAIMER}</p>
         </>
       ) : (
-        <Empty>Загрузи анализы — здесь будет динамика твоих показателей.</Empty>
+        <Empty>Сохраняй анализы в дневник — здесь будет динамика твоих показателей.</Empty>
       )}
     </Section>
   )

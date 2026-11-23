@@ -10,12 +10,12 @@ import { Card, Chip, Disclaimer, PageHeader } from '../ui/kit'
 type Filter = RecCategory | 'all' | 'fav'
 
 export function Recommendations() {
-  const { labs, favorites, toggleFavorite } = useApp()
+  const { favorites, toggleFavorite } = useApp()
   const { info } = useCycleToday()
   const [filter, setFilter] = useState<Filter>('all')
-  const recs = buildRecs(info?.phase ?? null, labs)
+  const recs = buildRecs(info?.phase ?? null)
 
-  const basis = [labs.length ? 'твоих анализов' : null, info ? PHASES[info.phase].gen : null].filter(Boolean).join(' и ')
+  const basis = info ? PHASES[info.phase].gen : ''
   const shown = recs.filter((r) => (filter === 'all' ? true : filter === 'fav' ? favorites.includes(r.id) : r.category === filter))
 
   const filters: { id: Filter; label: string }[] = [
@@ -29,7 +29,7 @@ export function Recommendations() {
       <PageHeader title="Рекомендации" />
       <div className="px-4 pb-6">
         <div className="rounded-2xl bg-brand-soft px-4 py-3 text-[13px] text-ink/80">
-          ✨ {basis ? `На основе ${basis}` : 'Добавь анализы и отметь цикл — советы станут персональными'}
+          ✨ {basis ? `Общие советы с учётом ${basis}` : 'Отметь начало месячных — советы будут учитывать фазу цикла'}
         </div>
 
         <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">

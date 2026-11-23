@@ -45,7 +45,7 @@ declare global {
   }
 }
 
-const tg: TgWebApp | undefined = window.Telegram?.WebApp
+const tg: TgWebApp | undefined = typeof window === 'undefined' ? undefined : window.Telegram?.WebApp
 /** true — запущено внутри Telegram (есть подписанные initData) */
 export const inTelegram = Boolean(tg?.initData)
 

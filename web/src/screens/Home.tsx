@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
-import { Bell, ChevronRight, Droplet, FlaskConical, MessageCircleHeart, Moon, Pill, Plus, Salad, Footprints, Smile } from 'lucide-react'
+import { Bell, ChevronRight, FlaskConical, Heart, MessageCircleHeart, Moon, Plus, Salad, Footprints, Smile } from 'lucide-react'
 import { useApp } from '../store/app'
 import { Button, GlassIcon, SectionTitle, SpeechBubble, TONES, type Tone } from '../ui/kit'
 import { LogoMark } from '../ui/Logo'
@@ -13,8 +13,8 @@ import { MOOD_REACTIONS, yuviTalk } from '../lib/yuviTalk'
 import { useTypewriter } from '../lib/useTypewriter'
 import { MARKS, PHASES, type CycleModel, type DayInfo, type Phase, type CycleSettings } from '../lib/cycle'
 import { addDays, formatDay, fromISO, plural, type ISODate } from '../lib/date'
-import { STATUS_COLOR, LAB_BY_CODE } from '../lib/labs'
-import { buildNotifications, buildRecs, latestLabs, type RecCategory } from '../lib/insights'
+import { itemName, latestValues } from '../lib/labs'
+import { buildNotifications, buildRecs, type RecCategory } from '../lib/insights'
 import { useCycleToday } from '../lib/useCycleToday'
 import { moodStreak, yuviState } from '../lib/yuvi'
 import { getUser, haptic } from '../lib/telegram'
@@ -24,9 +24,9 @@ import { getUser, haptic } from '../lib/telegram'
 
 export function Home() {
   const nav = useNavigate()
-  const { profile, labs, readNotifications, introSeen } = useApp()
+  const { profile, readNotifications, introSeen } = useApp()
   const { today, info, next, settings, model } = useCycleToday()
-  const unread = buildNotifications({ phase: info?.phase ?? null, cycleDay: info?.day ?? null, periodInDays: next?.inDays ?? null, labs }).some(
+  const unread = buildNotifications({ phase: info?.phase ?? null, cycleDay: info?.day ?? null, periodInDays: next?.inDays ?? null }).some(
     (n) => !readNotifications.includes(n.id),
   )
 
@@ -79,7 +79,7 @@ const POKE_MS = 650
 
 function YuviCard({ info, today }: { info: DayInfo | null; today: ISODate }) {
   const { moods, labs, predictionSeen, setPredictionSeen } = useApp()
-  const state = yuviState({ moods, labs, today, info })
+  const state = yuviState({ moods, today, info })
   const prediction = predictionFor(today, getUser().id)
   const seenToday = predictionSeen === today
   const [showPrediction, setShowPrediction] = useState(false)
@@ -88,20 +88,22 @@ function YuviCard({ info, today }: { info: DayInfo | null; today: ISODate }) {
   const [poke, setPoke] = useState(0)
   const busy = useRef(false)
 
-  // лента реплик на день: факты, пожелания, шутки и комментарии к данным
-  const talk = useMemo(
-    () =>
-      yuviTalk({
+  // лента реплик: собирается при открытии главной с учётом того, что уже показывалось
+  // (поэтому не пересчитывается, когда отмечаем реплику показанной)
+  const markTalkSeen = useApp((s) => s.markTalkSeen)
+  const [talk] = useState(() =>
+    yuviTalk(
+      {
         today,
         info,
         mood: moods[today],
         streak,
         periodInDays: next?.inDays ?? null,
         fertile: model.status(today)?.mark === 'fertile',
-        badLabs: latestLabs(labs).filter((e) => e.status === 'bad'),
         hasLabs: labs.length > 0,
-      }),
-    [today, info, moods, streak, next, model, labs],
+      },
+      useApp.getState().talkSeen,
+    ),
   )
   const [line, setLine] = useState(0)
 
@@ -123,13 +125,15 @@ function YuviCard({ info, today }: { info: DayInfo | null; today: ISODate }) {
   }
   // начало ленты: реакция на настроение, затем (если не открыто) приглашение к предсказанию
   const intro = [reaction, seenToday ? null : 'У меня для тебя предсказание на сегодня. Откроешь?'].filter((x): x is string => !!x)
-  const message = line < intro.length ? intro[line] : talk[(line - intro.length) % talk.length]
+  const current = line < intro.length ? null : talk[(line - intro.length) % talk.length]
+  const message = current ? current.text : intro[line]
   const dark = !!SCENES[state.mood].dark
   const typed = useTypewriter(message)
 
   // следующая реплика — через HOLD_MS после того, как текущая допечаталась (в фоне ждём)
   useEffect(() => {
     if (!typed.done) return
+    if (current) markTalkSeen(current.id)
     let id = 0
     const tick = () => {
       if (document.hidden) id = window.setTimeout(tick, 2000)
@@ -137,7 +141,7 @@ function YuviCard({ info, today }: { info: DayInfo | null; today: ISODate }) {
     }
     id = window.setTimeout(tick, HOLD_MS)
     return () => window.clearTimeout(id)
-  }, [typed.done, line])
+  }, [typed.done, line]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openPrediction = () => {
     haptic.success()
@@ -366,45 +370,13 @@ function ActionTile({
 const CAT_ICON: Record<RecCategory, { icon: typeof Salad; tone: Tone }> = {
   food: { icon: Salad, tone: 'mint' },
   activity: { icon: Footprints, tone: 'blue' },
-  supplements: { icon: Pill, tone: 'pink' },
   sleep: { icon: Moon, tone: 'violet' },
+  selfcare: { icon: Heart, tone: 'pink' },
 }
 
 function Insight({ phase }: { phase: Phase | null }) {
   const nav = useNavigate()
-  const labs = useApp((s) => s.labs)
-  const alert = latestLabs(labs).find((e) => e.status === 'bad')
-
-  if (alert) {
-    const t = TONES.red
-    return (
-      <section className="relative mt-3 overflow-hidden rounded-card p-4 shadow-card" style={{ background: `linear-gradient(135deg, #fff 35%, ${t.soft})` }}>
-        <span className="deco-bubble -right-6 -top-6 size-24 opacity-70" style={{ background: `radial-gradient(circle at 30% 30%, #fff, ${t.g1}55 60%)` }} />
-        <div className="relative flex items-start gap-3">
-          <GlassIcon icon={Droplet} tone="red" />
-          <div className="min-w-0 flex-1">
-            <div className="text-[12px] font-bold uppercase tracking-wide" style={{ color: t.text }}>
-              Юви советует
-            </div>
-            <div className="mt-0.5 text-[16px] font-bold">
-              {alert.def.name}: {alert.value} {alert.def.unit} — {alert.direction === 'low' ? 'ниже' : 'выше'} нормы
-            </div>
-            <p className="mt-1 text-[13px] leading-snug text-ink/75">{alert.advice}</p>
-          </div>
-        </div>
-        <div className="relative mt-3 flex gap-2">
-          <button onClick={() => nav('/chat')} className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-white py-2.5 text-[13px] font-bold shadow-card" style={{ color: t.text }}>
-            <MessageCircleHeart size={16} /> Спросить Юви
-          </button>
-          <button onClick={() => nav('/recommendations')} className="flex-1 rounded-full py-2.5 text-[13px] font-bold text-white" style={{ background: `linear-gradient(135deg, ${t.g1}, ${t.g2})` }}>
-            Что делать
-          </button>
-        </div>
-      </section>
-    )
-  }
-
-  const tip = buildRecs(phase, labs)[0]
+  const tip = buildRecs(phase)[0]
   if (!tip) return null
   const ci = CAT_ICON[tip.category]
   const t = TONES[ci.tone]
@@ -433,12 +405,7 @@ function Insight({ phase }: { phase: Phase | null }) {
 function Metrics() {
   const nav = useNavigate()
   const labs = useApp((s) => s.labs)
-  const latest = latestLabs(labs)
-  // предыдущее значение для стрелки динамики
-  const prevValue = (code: string) => {
-    const vals = [...labs].sort((a, b) => (a.date < b.date ? 1 : -1)).flatMap((l) => l.items.filter((i) => i.code === code).map((i) => i.value))
-    return vals[1]
-  }
+  const latest = latestValues(labs)
 
   return (
     <>
@@ -454,33 +421,23 @@ function Metrics() {
         Мои показатели
       </SectionTitle>
       <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
-        {latest.map((e) => {
-          const prev = prevValue(e.def.code)
-          const color = STATUS_COLOR[e.status]
-          const label = { ok: 'норма', warn: 'внимание', bad: e.direction === 'low' ? 'низкий' : 'высокий' }[e.status]
-          return (
-            <button key={e.def.code} onClick={() => nav('/labs')} className="glass w-[138px] shrink-0 snap-start rounded-card p-3.5 text-left shadow-card">
-              <div className="truncate text-[13px] font-semibold text-ink/80">{e.def.name}</div>
-              <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-[26px] font-bold leading-none" style={{ color }}>
-                  {e.value}
-                </span>
-                {prev !== undefined && prev !== e.value && <span className="text-[13px] font-bold text-muted">{prev < e.value ? '↑' : '↓'}</span>}
-              </div>
-              <div className="mt-0.5 text-[11px] text-muted">{LAB_BY_CODE[e.def.code].unit}</div>
-              <span className="mt-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: `color-mix(in srgb, ${color} 14%, white)`, color }}>
-                {label}
-              </span>
-            </button>
-          )
-        })}
+        {latest.map((v) => (
+          <button key={v.key} onClick={() => nav(`/labs/${v.recordId}`)} className="glass w-[138px] shrink-0 snap-start rounded-card p-3.5 text-left shadow-card">
+            <div className="truncate text-[13px] font-semibold text-ink/80">{itemName(v.item)}</div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-[26px] font-bold leading-none">{v.item.value}</span>
+              {v.prev && v.prev.value !== v.item.value && <span className="text-[13px] font-bold text-muted">{v.prev.value < v.item.value ? '↑' : '↓'}</span>}
+            </div>
+            <div className="mt-0.5 text-[11px] text-muted">{v.item.unit}</div>
+            <div className="mt-2 text-[11px] text-muted">{formatDay(v.date)}</div>
+          </button>
+        ))}
         <button onClick={() => nav('/labs/new')} className="flex w-[138px] shrink-0 snap-start flex-col items-start justify-between rounded-card border-2 border-dashed border-accent/30 bg-white/50 p-3.5 text-left">
           <GlassIcon icon={latest.length ? Plus : FlaskConical} tone="violet" size={40} />
-          <span className="mt-3 text-[13px] font-bold text-accent">{latest.length ? 'Добавить анализ' : 'Загрузить первый анализ'}</span>
-          <span className="text-[11px] text-muted">фото или вручную</span>
+          <span className="mt-3 text-[13px] font-bold text-accent">{latest.length ? 'Добавить анализ' : 'Первый анализ'}</span>
+          <span className="text-[11px] text-muted">в дневник анализов</span>
         </button>
       </div>
-      {labs[0] && <p className="mt-2 text-center text-[11px] text-muted">Обновлено {formatDay(labs[0].date, true)}</p>}
     </>
   )
 }
